@@ -164,3 +164,63 @@ def generate_video_random_saliency_scanpath(saliency_map_folder, percentile):
         video_scanpaths.append(frame_scanpath)
 
     return video_scanpaths
+
+def generate_image_probabilistic_saliency_scanpath(saliency_map_path, probabilistic_importance_factor=1.0):
+    """
+    Generates a scanpath based on a saliency map, selecting points probabilistically based on saliency values,
+    adjusted by an importance factor.
+
+    Parameters:
+    - saliency_map_path: str, path to the saliency map image (grayscale).
+    - probabilistic_importance_factor: float, factor to adjust the importance given to higher saliency values.
+
+    Returns:
+    - A list of coordinates representing the scanpath, normalized to [0, 1].
+    """
+    # Load the saliency map as a grayscale image
+    saliency_map = cv2.imread(saliency_map_path, cv2.IMREAD_GRAYSCALE)
+    if saliency_map is None:
+        raise ValueError("Saliency map could not be loaded.")
+
+    # Adjust the saliency values by the importance factor
+    adjusted_saliency = np.power(saliency_map.flatten(), probabilistic_importance_factor)
+    total_adjusted_saliency = np.sum(adjusted_saliency)
+    if total_adjusted_saliency == 0:
+        raise ValueError("Adjusted saliency results in zero total saliency.")
+    probabilities = adjusted_saliency / total_adjusted_saliency
+
+    # Choose indices based on the adjusted probability distribution
+    chosen_indices = np.random.choice(len(adjusted_saliency), size=1, p=probabilities)
+
+    # Convert flat indices back to 2D coordinates and normalize
+    scanpath = []
+    for idx in chosen_indices:
+        x, y = divmod(idx, saliency_map.shape[1])  # Convert flat index to 2D coordinates
+        y_normalized, x_normalized = y / saliency_map.shape[1], x / saliency_map.shape[0]
+        scanpath.extend([x_normalized, y_normalized])
+
+    return scanpath
+
+def generate_video_probabilistic_saliency_scanpath(saliency_map_folder, probabilistic_importance_factor=1.0):
+    """
+    Generates a scanpath for each frame in a sequence of saliency maps, selecting points probabilistically based on saliency values.
+
+    Parameters:
+    - saliency_map_folder: str, path to the folder containing saliency map images (grayscale).
+
+    Returns:
+    - A list of scanpaths, each representing the sequence of normalized coordinates for each frame in the video.
+    """
+    # Get a sorted list of saliency map files
+    saliency_maps = sorted([f for f in os.listdir(saliency_map_folder) if f.endswith('.png') or f.endswith('.jpg')])
+
+    # Initialize a list to hold the scanpath for each frame
+    video_scanpaths = []
+
+    for map_file in saliency_maps:
+        map_path = os.path.join(saliency_map_folder, map_file)
+        # Use the generate_image_probabilistic_saliency_scanpath function for each saliency map
+        frame_scanpath = generate_image_probabilistic_saliency_scanpath(map_path, probabilistic_importance_factor=probabilistic_importance_factor)
+        video_scanpaths.append(frame_scanpath)
+
+    return video_scanpaths

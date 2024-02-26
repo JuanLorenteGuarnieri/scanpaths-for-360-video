@@ -23,6 +23,8 @@ def process_video_scanpath():
         video_scanpath = sg.generate_video_saliency_scanpath(saliency_map_folder)
     elif config.scanpath_generator_type == 'percentile_saliency':
         video_scanpath = sg.generate_video_random_saliency_scanpath(saliency_map_folder, config.percentile)
+    elif config.scanpath_generator_type == 'probabilistic_saliency':
+        video_scanpath = sg.generate_video_probabilistic_saliency_scanpath(saliency_map_folder, config.probabilistic_importance)
     else:
         raise ValueError("Unsupported scanpath generator type specified in config.py")
 
@@ -43,6 +45,8 @@ def process_video_scanpath():
         extension_type = config.scanpath_generator_type
         if config.scanpath_generator_type == 'percentile_saliency':
             extension_type = extension_type + '_' + str(config.percentile)
+        elif config.scanpath_generator_type == 'probabilistic_saliency':
+            extension_type = extension_type + '_' + str(config.probabilistic_importance)
 
         # Extract folder name for the video file name
         video_name = os.path.basename(config.folder_path+'_'+ extension_type) + '.avi'  # Or use .mp4
