@@ -224,3 +224,107 @@ def generate_video_probabilistic_saliency_scanpath(saliency_map_folder, probabil
         video_scanpaths.append(frame_scanpath)
 
     return video_scanpaths
+
+def generate_video_saliency_scanpath_with_inhibition(saliency_map_folder, inhibition_radius=50, inhibition_decay=0.5, history_length=5):
+
+    # Get a sorted list of saliency map files
+    saliency_maps = sorted([f for f in os.listdir(saliency_map_folder) if f.endswith('.png') or f.endswith('.jpg')])
+
+    video_scanpaths = []
+    recent_points = []  # Store recent points for inhibition across frames
+
+    for map_file in saliency_maps:
+        map_path = os.path.join(saliency_map_folder, map_file)
+        saliency_map = cv2.imread(map_path, cv2.IMREAD_GRAYSCALE)
+        if saliency_map is None:
+            raise ValueError(f"Saliency map {map_path} could not be loaded.")
+
+        scanpath = []
+        if recent_points:
+            modified_saliency_map = saliency_map.copy()
+            for point in recent_points:
+                cv2.circle(modified_saliency_map, point, inhibition_radius, 0, -1)  # Apply inhibition
+        else:
+            modified_saliency_map = saliency_map
+
+        flat_saliency = modified_saliency_map.flatten().astype(np.float32)
+        total_saliency = np.sum(flat_saliency)
+        probabilities = flat_saliency / total_saliency
+
+        chosen_index = np.random.choice(len(flat_saliency), p=probabilities)
+        y, x = divmod(chosen_index, saliency_map.shape[1])
+        scanpath.extend([x / saliency_map.shape[1], y / saliency_map.shape[0]])
+
+        # Update recent points list for global inhibition
+        recent_points.append((x, y))
+        if len(recent_points) > history_length:
+            recent_points.pop(0)  # Remove the oldest point
+
+        video_scanpaths.append(scanpath)
+
+    return video_scanpaths
+
+def apply_inhibition(saliency_map, points, radius, decay):
+    """
+    Apply inhibition of return to the saliency map around the given points with specified radius and decay.
+
+    Parameters:
+    - saliency_map: np.array, the saliency map.
+    - points: list of tuples, points where inhibition will be applied.
+    - radius: int, radius around points to apply inhibition.
+    - decay: float, factor by which saliency is reduced.
+    """
+    radius = int(radius)
+
+    for point in points:
+        point_x = int(point[0])
+        point_y = int(point[1])
+
+        for y in range(max(0, point_y - radius), min(saliency_map.shape[0], point_y + radius + 1)):
+            for x in range(max(0, point_x - radius), min(saliency_map.shape[1], point_x + radius + 1)):
+                distance = np.sqrt((point_x - x) ** 2 + (point_y - y) ** 2)
+                if distance <= radius:
+                    saliency_map[y, x] *= (1 - decay * (1 - distance / radius))
+
+
+def generate_video_saliency_scanpath_with_inhibition(saliency_map_folder, inhibition_radius=50, inhibition_decay=0.5, history_length=5, probabilistic_importance_factor=1.0):
+    """
+    Generates a scanpath for each frame in a sequence of saliency maps, applying inhibition of return to recently selected points across the video frames.
+
+    Parameters:
+    - saliency_map_folder: str, Path to the folder containing saliency map images (grayscale).
+    - inhibition_radius: int, Radius around selected points where saliency will be reduced.
+    - inhibition_decay: float, Factor by which saliency is reduced within the inhibition radius.
+    - history_length: int, Number of recent points to consider for inhibition across frames.
+    - probabilistic_importance_factor: float, factor to adjust the importance given to higher saliency values.
+
+    Returns:
+    - A list of lists, each inner list represents the sequence of normalized coordinates for each frame in the video.
+    """
+
+    saliency_maps = sorted([f for f in os.listdir(saliency_map_folder) if f.endswith('.png') or f.endswith('.jpg')])
+    video_scanpaths = []
+    recent_points = []  # Store recent points for inhibition across frames
+
+    for map_file in saliency_maps:
+        map_path = os.path.join(saliency_map_folder, map_file)
+        saliency_map = cv2.imread(map_path, cv2.IMREAD_GRAYSCALE)
+        if saliency_map is None:
+            raise ValueError(f"Saliency map {map_path} could not be loaded.")
+
+        if recent_points:
+            modified_saliency_map = saliency_map.copy().astype(np.float32)
+            apply_inhibition(modified_saliency_map, recent_points, inhibition_radius, inhibition_decay)
+        else:
+            modified_saliency_map = saliency_map.astype(np.float32)
+
+        frame_scanpath = generate_image_probabilistic_saliency_scanpath(map_path, probabilistic_importance_factor=probabilistic_importance_factor)
+
+        # Update recent points list for global inhibition
+        recent_points.append((frame_scanpath[0] * saliency_map.shape[1], frame_scanpath[1] * saliency_map.shape[0]))
+        if len(recent_points) > history_length:
+            recent_points.pop(0)  # Remove the oldest point
+
+        video_scanpaths.append(frame_scanpath)
+
+    return video_scanpaths
