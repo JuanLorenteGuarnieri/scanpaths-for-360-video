@@ -5,10 +5,10 @@ import shutil
 import os
 import cv2
 
-def process_video_scanpath(folder_path):
-    saliency_map_folder = os.path.join(folder_path, 'saliency')
-    original_folder = os.path.join(folder_path, 'original')
-    output_folder = os.path.join(folder_path, 'output')
+def process_video_scanpath():
+    saliency_map_folder = os.path.join(config.folder_path, 'saliency')
+    original_folder = os.path.join(config.folder_path, 'original')
+    output_folder = os.path.join(config.folder_path, 'output')
     frames_folder = os.path.join(output_folder, 'frames')  # Subfolder for frames
     
     # If output_folder already exists, delete it and create a new one
@@ -21,6 +21,8 @@ def process_video_scanpath(folder_path):
         video_scanpath = sg.generate_video_random_scanpath(original_folder)
     elif config.scanpath_generator_type == 'max_saliency':
         video_scanpath = sg.generate_video_saliency_scanpath(saliency_map_folder)
+    elif config.scanpath_generator_type == 'percentile_saliency':
+        video_scanpath = sg.generate_video_random_saliency_scanpath(saliency_map_folder, config.percentile)
     else:
         raise ValueError("Unsupported scanpath generator type specified in config.py")
 
@@ -38,8 +40,12 @@ def process_video_scanpath(folder_path):
         first_frame = cv2.imread(first_frame_path)
         height, width, layers = first_frame.shape
 
+        extension_type = config.scanpath_generator_type
+        if config.scanpath_generator_type == 'percentile_saliency':
+            extension_type = extension_type + '_' + str(config.percentile)
+
         # Extract folder name for the video file name
-        video_name = os.path.basename(folder_path) + '.avi'  # Or use .mp4
+        video_name = os.path.basename(config.folder_path+'_'+ extension_type) + '.avi'  # Or use .mp4
         video_path = os.path.join(output_folder, video_name)
 
         # Define the codec and create VideoWriter object
@@ -53,8 +59,8 @@ def process_video_scanpath(folder_path):
 
         out.release()  # Release the VideoWriter object
 
-    print("Visualization complete.")
+    print("Video exported.")
 
 
 if __name__ == "__main__":
-    process_video_scanpath(config.folder_path)
+    process_video_scanpath()

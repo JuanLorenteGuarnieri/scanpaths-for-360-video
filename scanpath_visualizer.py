@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import matplotlib.image as mpimg
 import numpy as np
+from tqdm import tqdm
 import cv2
 import os
 import re
@@ -76,8 +77,7 @@ def visualize_image_scanpath(input_image_path, generated_scanpaths, prefix="scan
     plt.savefig(f"{path_to_save}/{prefix}{base_name}_{next_number}.png")
     plt.clf()
     plt.close('all')
-    print("Scanpath image printed with optional overlay.")
-
+    # print("Scanpath image printed with optional overlay.")
 
 def visualize_video_scanpath(video_frames_folder, scanpaths, path_to_save, prefix="scanpath_video_frame_", overlay_folder=None, overlay_alpha=0.4, history_length=10):
     """
@@ -101,8 +101,8 @@ def visualize_video_scanpath(video_frames_folder, scanpaths, path_to_save, prefi
     # Get a sorted list of video frame files
     video_frames = sorted([f for f in os.listdir(video_frames_folder) if f.endswith('.png') or f.endswith('.jpg')])
 
-    # Iterate through each frame
-    for idx, frame_file in enumerate(video_frames):
+    # Iterate through each frame with tqdm for a progress bar
+    for idx, frame_file in tqdm(enumerate(video_frames), total=len(video_frames), desc="Processing frames", unit="frame", ncols=100):
         input_image_path = os.path.join(video_frames_folder, frame_file)
 
         # Calculate the start index for the scanpath history
@@ -114,8 +114,7 @@ def visualize_video_scanpath(video_frames_folder, scanpaths, path_to_save, prefi
         if overlay_folder:
             overlay_image_path = os.path.join(overlay_folder, frame_file)  # Assuming same naming convention
             if not os.path.exists(overlay_image_path):
-                print(f"Overlay image not found for {frame_file}, skipping overlay.")
-                overlay_image_path = None
+                overlay_image_path = None  # Handle missing overlay image gracefully
         else:
             overlay_image_path = None
 
@@ -126,4 +125,4 @@ def visualize_video_scanpath(video_frames_folder, scanpaths, path_to_save, prefi
         # Visualize the current and previous scanpath points on the image
         visualize_image_scanpath(input_image_path, [current_scanpath], prefix, path_to_save, overlay_image_path, overlay_alpha)
 
-        print(f"Frame {idx + 1}/{len(video_frames)} processed and saved as {output_file_name}.")
+        # The print statement is removed, as tqdm will update the progress bar automatically
