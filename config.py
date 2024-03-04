@@ -1,6 +1,11 @@
 #####################################################################################
 # Scanpath generator parameters
 #####################################################################################
+# Indicates if the scanpath generated sould be used to create a video with the scanpath overlapping it
+visualize = False
+# Indicates the number of scanpaths to be generated, if visualize option is set use n_scanpaths=1 
+# to avoid generating all videos and overwritting them
+n_scanpaths = 5
 # Path to the folder containing the original frames and saliency maps
 folder_path = './data/input_2'
 # Indicates if the program used for generate scanpaths shows the saliency maps in the output video
