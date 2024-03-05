@@ -18,6 +18,9 @@ numba==0.53.1
 numpy==1.20.1
 opencv_python==4.5.4.58 
 Pillow==9.1.1 
+fastdtw==0.3.4
+editdistance==0.8.1
+requests==2.31.0
 scipy==1.6.2 
 torch==1.5.1+cu92 
 torchvision==0.6.1+cu92 tqdm

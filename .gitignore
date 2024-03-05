@@ -5,3 +5,4 @@ __pycache__/
 # Environments
 .env
 .venv/
+output_scanpaths/*

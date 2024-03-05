@@ -1,6 +1,8 @@
 import config
 import scanpath_visualizer as sv
 import scanpath_generator as sg
+import metrics as metrics
+import numpy as np
 import shutil
 import os
 import cv2
@@ -8,7 +10,94 @@ import json
 
 scanpaths = []
 
-def process_video_scanpath():
+
+def analyzer():
+    # Check if the file exists
+    if not os.path.exists("./output_scanpaths/"+config.a_name + config.a_parameters+ ".scanpaths"):
+        print(f"File {config.a_name + config.a_parameters+ '.scanpaths'} not found.")
+        return
+
+    # Load the scanpaths from the file
+    with open("./output_scanpaths/"+config.a_name + config.a_parameters + ".scanpaths", 'r') as file:
+        scanpaths = json.load(file)
+
+    # scanpath_array1 = np.array(scanpaths[0])
+    # scanpath_array2 = np.array(scanpaths[1])
+    # print(metrics.levenshtein_distance(scanpath_array1,scanpath_array2, 1,1)) #NO OK
+
+    # print(metrics.REC(scanpaths[0],scanpaths[0], 0.1)) #NO OK
+
+    # print(metrics.DET(scanpaths[0],scanpaths[1], 1)) #NO OK
+
+    print(metrics.DTW(scanpaths[0],scanpaths[3])) #OK
+
+    print(f"Scanpath analysis complete")
+
+def visualizer():
+    # Check if the file exists
+    if not os.path.exists("./output_scanpaths/"+config.v_name + config.v_parameters+ ".scanpaths"):
+        print(f"File {config.v_name + config.v_parameters+ '.scanpaths'} not found.")
+        return
+
+    # Load the scanpaths from the file
+    with open("./output_scanpaths/"+config.v_name + config.v_parameters + ".scanpaths", 'r') as file:
+        scanpaths = json.load(file)
+
+    # Ensure config.i_scanpath is a valid index
+    i_scanpath = min(config.i_scanpath-1, len(scanpaths) - 1)
+
+    output_folder = "./output_scanpaths/"+config.v_name + config.v_parameters+"_n"+str(i_scanpath)
+    frames_folder = os.path.join(output_folder, 'frames')  # Subfolder for frames
+
+    # If output_folder already exists, delete it and create a new one
+    if os.path.exists(output_folder):
+        shutil.rmtree(output_folder)
+    else:
+        os.makedirs(output_folder, exist_ok=True)
+    os.makedirs(frames_folder, exist_ok=True)  # Also create the subfolder for frames
+
+    # Select the scanpath
+    selected_scanpath = scanpaths[i_scanpath]
+
+    if os.path.exists("./data/"+config.v_name + "/original/"):
+        original_video_path = "./data/"+config.v_name + "/original/"
+    else:
+        original_video_path = None
+
+    if os.path.exists("./data/"+config.v_name + "/saliency/"):
+        saliency_video_path = "./data/"+config.v_name + "/saliency/"
+    else:
+        saliency_video_path = None
+
+    # Visualize the selected scanpath
+    sv.visualize_video_scanpath(original_video_path, selected_scanpath, path_to_save=frames_folder, overlay_folder=saliency_video_path, history_length=config.v_history_length, generated=False)
+    
+    # Generate video from the frames
+    frame_files = sorted(os.listdir(frames_folder))  # Assuming frames are named in a sortable manner
+    if frame_files:
+        # Assuming all frames have the same size
+        first_frame_path = os.path.join(frames_folder, frame_files[0])
+        first_frame = cv2.imread(first_frame_path)
+        height, width, layers = first_frame.shape
+        
+        # Extract folder name for the video file name
+        video_name = config.v_name + config.v_parameters+"_n"+str(i_scanpath) + '.avi'  # Or use .mp4
+        video_path = os.path.join(output_folder, video_name)
+
+        # Define the codec and create VideoWriter object
+        fourcc = cv2.VideoWriter_fourcc(*'XVID')  # Adjust codec as needed
+        out = cv2.VideoWriter(video_path, fourcc, 20.0, (width, height))
+
+        for frame_file in frame_files:
+            frame_path = os.path.join(frames_folder, frame_file)
+            frame = cv2.imread(frame_path)
+            out.write(frame)  # Write the frame to the video
+
+        out.release()  # Release the VideoWriter object
+
+    print(f"Scanpath visualization complete")
+    
+def generator():
     saliency_map_folder = os.path.join(config.folder_path, 'saliency')
     original_folder = os.path.join(config.folder_path, 'original')
     output_folder = os.path.join(config.folder_path, 'output')
@@ -41,9 +130,9 @@ def process_video_scanpath():
             scanpaths.append(video_scanpath)
         else:
             if config.overlay_saliency and config.scanpath_generator_type != 'random':
-                sv.visualize_video_scanpath(original_folder, video_scanpath, path_to_save=frames_folder, overlay_folder=saliency_map_folder)
+                sv.visualize_video_scanpath(original_folder, video_scanpath, path_to_save=frames_folder, overlay_folder=saliency_map_folder, history_length=config.g_history_length)
             else:
-                sv.visualize_video_scanpath(original_folder, video_scanpath, path_to_save=frames_folder)
+                sv.visualize_video_scanpath(original_folder, video_scanpath, path_to_save=frames_folder, history_length=config.g_history_length)
 
             # Generate video from the frames
             frame_files = sorted(os.listdir(frames_folder))  # Assuming frames are named in a sortable manner
@@ -89,8 +178,8 @@ def process_video_scanpath():
                 extension_type = extension_type + '_R' + str(config.inhibition_radius)+ '_D' + str(config.inhibition_decay) + '_L' + str(config.inhibition_history_length)
 
             # Extract folder name for the video file name
-            scanpath_filename = os.path.basename("scanpaths_N"+str(config.n_scanpaths)+"_"+ extension_type) + '.scanpaths'  # Or use .mp4
-            scanpath_path = os.path.join(output_folder, scanpath_filename)
+            scanpath_filename = os.path.basename(config.folder_path+"_N"+str(config.n_scanpaths)+"_"+ extension_type) + '.scanpaths'  # Or use .mp4
+            scanpath_path = os.path.join("./output_scanpaths/", scanpath_filename)
             
             # Guardar la lista scanpaths en un archivo
             with open(scanpath_path, 'w') as file:
@@ -100,4 +189,11 @@ def process_video_scanpath():
 
 
 if __name__ == "__main__":
-    process_video_scanpath()
+    if config.analyze:
+        analyzer()
+    elif not config.generate and config.visualize:
+        visualizer()
+    elif config.generate:
+        generator()
+    elif not config.analyze and not config.generate and not config.visualize:
+        print(f"No option selected")
