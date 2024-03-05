@@ -1,6 +1,7 @@
 import numpy as np
 import cv2
 import os
+import config
 
 def generate_image_random_scanpath(length=10):
     """
@@ -225,45 +226,6 @@ def generate_video_probabilistic_saliency_scanpath(saliency_map_folder, probabil
 
     return video_scanpaths
 
-def generate_video_saliency_scanpath_with_inhibition(saliency_map_folder, inhibition_radius=50, inhibition_decay=0.5, history_length=5):
-
-    # Get a sorted list of saliency map files
-    saliency_maps = sorted([f for f in os.listdir(saliency_map_folder) if f.endswith('.png') or f.endswith('.jpg')])
-
-    video_scanpaths = []
-    recent_points = []  # Store recent points for inhibition across frames
-
-    for map_file in saliency_maps:
-        map_path = os.path.join(saliency_map_folder, map_file)
-        saliency_map = cv2.imread(map_path, cv2.IMREAD_GRAYSCALE)
-        if saliency_map is None:
-            raise ValueError(f"Saliency map {map_path} could not be loaded.")
-
-        scanpath = []
-        if recent_points:
-            modified_saliency_map = saliency_map.copy()
-            for point in recent_points:
-                cv2.circle(modified_saliency_map, point, inhibition_radius, 0, -1)  # Apply inhibition
-        else:
-            modified_saliency_map = saliency_map
-
-        flat_saliency = modified_saliency_map.flatten().astype(np.float32)
-        total_saliency = np.sum(flat_saliency)
-        probabilities = flat_saliency / total_saliency
-
-        chosen_index = np.random.choice(len(flat_saliency), p=probabilities)
-        y, x = divmod(chosen_index, saliency_map.shape[1])
-        scanpath.extend([x / saliency_map.shape[1], y / saliency_map.shape[0]])
-
-        # Update recent points list for global inhibition
-        recent_points.append((x, y))
-        if len(recent_points) > history_length:
-            recent_points.pop(0)  # Remove the oldest point
-
-        video_scanpaths.append(scanpath)
-
-    return video_scanpaths
-
 def apply_inhibition(saliency_map, points, radius, decay):
     """
     Apply inhibition of return to the saliency map around the given points with specified radius and decay.
@@ -285,6 +247,56 @@ def apply_inhibition(saliency_map, points, radius, decay):
                 distance = np.sqrt((point_x - x) ** 2 + (point_y - y) ** 2)
                 if distance <= radius:
                     saliency_map[y, x] *= (1 - decay * (1 - distance / radius))
+    # Normalizing the saliency map to keep values within a reasonable range
+    saliency_map = np.clip(saliency_map, 0, 1)
+    
+
+def apply_equatorial_bias(saliency_map):
+    """
+    Apply an equatorial bias to the saliency map to increase the saliency of points near the horizontal center.
+
+    Parameters:
+    - saliency_map: np.array, the saliency map.
+    """
+    rows, cols = saliency_map.shape
+    equator = rows / 2
+
+    for y in range(rows):
+        for x in range(cols):
+            distance_to_equator = abs(y - equator)
+            decay_factor = 1 - (distance_to_equator / equator)
+            saliency_map[y, x] += config.bias_strength * decay_factor * saliency_map[y, x]
+
+    # Normalizing the saliency map to keep values within a reasonable range
+    saliency_map = np.clip(saliency_map, 0, 1)
+
+def adjust_saliency_by_angle(saliency_map, current_point, angle):
+    """
+    Adjust the saliency map to gradually decrease saliency of points as they are farther from the current fixation point,
+    based on an angle in degrees. The angle determines the fraction of the image width that affects the saliency reduction,
+    with 360 degrees representing the full width and 45 degrees representing a quarter of the width.
+
+    Parameters:
+    - saliency_map: np.array, the saliency map.
+    - current_point: tuple of int, the current fixation point (x, y).
+    - angle: float, the angle in degrees determining the effective 'distance' for saliency adjustment.
+    """
+    rows, cols = saliency_map.shape
+    # Calculate max_distance based on the angle, where 2*pi radians = full width of the image
+    max_distance = (np.deg2rad(angle) / (2 * np.pi)) * cols
+    max_distance=cols/10
+
+    for y in range(rows):
+        for x in range(cols):
+            distance = np.sqrt((current_point[0] - x) ** 2 + (current_point[1] - y) ** 2)
+            if distance <= max_distance:
+                decay_factor = 1 - (distance / max_distance)
+                saliency_map[y, x] *= decay_factor
+            else:
+                saliency_map[y, x] = 0  # Set saliency to zero beyond the calculated max distance
+
+    # Normalizing the saliency map to keep values within a reasonable range
+    saliency_map = np.clip(saliency_map, 0, 1)
 
 
 def generate_video_saliency_scanpath_with_inhibition(saliency_map_folder, inhibition_radius=50, inhibition_decay=0.5, history_length=5, probabilistic_importance_factor=1.0):
@@ -315,8 +327,14 @@ def generate_video_saliency_scanpath_with_inhibition(saliency_map_folder, inhibi
         if recent_points:
             modified_saliency_map = saliency_map.copy().astype(np.float32)
             apply_inhibition(modified_saliency_map, recent_points, inhibition_radius, inhibition_decay)
+            if config.fixation_distance:
+                adjust_saliency_by_angle(modified_saliency_map, recent_points[-1], config.fixation_angle)
         else:
             modified_saliency_map = saliency_map.astype(np.float32)
+
+        if config.equator_bias:
+            apply_equatorial_bias(modified_saliency_map)
+
 
         frame_scanpath = generate_image_probabilistic_saliency_scanpath(map_path, probabilistic_importance_factor=probabilistic_importance_factor)
 

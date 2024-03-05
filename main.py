@@ -2,6 +2,7 @@ import config
 import scanpath_visualizer as sv
 import scanpath_generator as sg
 import metrics as metrics
+import utils as utils
 import numpy as np
 import shutil
 import os
@@ -70,8 +71,14 @@ def visualizer():
         saliency_video_path = None
 
     # Visualize the selected scanpath
-    sv.visualize_video_scanpath(original_video_path, selected_scanpath, path_to_save=frames_folder, overlay_folder=saliency_video_path, history_length=config.v_history_length, generated=False)
-    
+    if config.v_type == "preview":
+        sv.visualize_video_scanpath(original_video_path, scanpaths, path_to_save=frames_folder, overlay_folder=saliency_video_path, history_length=config.v_history_length, generated=False)
+    elif config.v_type == "multi":
+        fov_vert_hor = None
+        utils.plot_all_viewports(scanpaths, fov_vert_hor, frames_folder, config.v_name)
+    elif config.v_type == "thumbnail":
+        utils.plot_thumbnail(selected_scanpath, frames_folder, config.v_name)
+
     # Generate video from the frames
     frame_files = sorted(os.listdir(frames_folder))  # Assuming frames are named in a sortable manner
     if frame_files:
@@ -79,9 +86,14 @@ def visualizer():
         first_frame_path = os.path.join(frames_folder, frame_files[0])
         first_frame = cv2.imread(first_frame_path)
         height, width, layers = first_frame.shape
-        
+
         # Extract folder name for the video file name
-        video_name = config.v_name + config.v_parameters+"_n"+str(i_scanpath) + '.avi'  # Or use .mp4
+        if config.v_type == "preview":
+            video_name = config.v_name + config.v_parameters+"_n"+str(i_scanpath) + '_preview.avi'
+        elif config.v_type == "multi":
+            video_name = config.v_name + config.v_parameters+'_multi.avi'
+        elif config.v_type == "thumbnail":
+            video_name = config.v_name + config.v_parameters+"_n"+str(i_scanpath) + '_thumbnail.avi'
         video_path = os.path.join(output_folder, video_name)
 
         # Define the codec and create VideoWriter object
@@ -96,7 +108,7 @@ def visualizer():
         out.release()  # Release the VideoWriter object
 
     print(f"Scanpath visualization complete")
-    
+
 def generator():
     saliency_map_folder = os.path.join(config.folder_path, 'saliency')
     original_folder = os.path.join(config.folder_path, 'original')
@@ -149,6 +161,10 @@ def generator():
                     extension_type = extension_type + '_' + str(config.probabilistic_importance)
                 elif config.scanpath_generator_type == 'inhibition_saliency':
                     extension_type = extension_type + '_R' + str(config.inhibition_radius)+ '_D' + str(config.inhibition_decay) + '_L' + str(config.inhibition_history_length)
+                    if config.equator_bias:
+                        extension_type = extension_type + '_EB' + str(config.bias_strength)
+                    if config.fixation_distance:
+                        extension_type = extension_type + '_FixAngle' + str(config.fixation_angle)
 
                 # Extract folder name for the video file name
                 video_name = os.path.basename(config.folder_path+'_'+ extension_type) + '.avi'  # Or use .mp4
@@ -168,7 +184,7 @@ def generator():
             print("Video exported.")
 
         if i == config.n_scanpaths - 1:
-            
+
             extension_type = config.scanpath_generator_type
             if config.scanpath_generator_type == 'percentile_saliency':
                 extension_type = extension_type + '_' + str(config.percentile)
@@ -176,11 +192,15 @@ def generator():
                 extension_type = extension_type + '_' + str(config.probabilistic_importance)
             elif config.scanpath_generator_type == 'inhibition_saliency':
                 extension_type = extension_type + '_R' + str(config.inhibition_radius)+ '_D' + str(config.inhibition_decay) + '_L' + str(config.inhibition_history_length)
+                if config.equator_bias:
+                    extension_type = extension_type + '_EB' + str(config.bias_strength)
+                if config.fixation_distance:
+                    extension_type = extension_type + '_FixAngle' + str(config.fixation_angle)
 
             # Extract folder name for the video file name
             scanpath_filename = os.path.basename(config.folder_path+"_N"+str(config.n_scanpaths)+"_"+ extension_type) + '.scanpaths'  # Or use .mp4
             scanpath_path = os.path.join("./output_scanpaths/", scanpath_filename)
-            
+
             # Guardar la lista scanpaths en un archivo
             with open(scanpath_path, 'w') as file:
                 json.dump(scanpaths, file)

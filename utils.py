@@ -1,11 +1,11 @@
+
+import numpy as np
+
+
 """
   code from:
 https://github.com/DaniMS-ZGZ/saliency/blob/master/metrics/utils.py
 """
-import numpy as np
-
-
-
 def scanpath_to_string(scanpath, height, width, Xbins, Ybins, Tbins):
 	"""
 			a b c d ...
@@ -224,5 +224,350 @@ def global_align(P, Q, SubMatrix=None, gap=0, match=1, mismatch=-1):
 
 
 
+"""
+  code by:
+		Daniel Martín
+"""
+
+import matplotlib.pyplot as plt
+import os
+import matplotlib.image as mpimg
+import re
+import cv2
+import matplotlib.cm as cm
+
+def get_gnomonic_hom(center_lat_lon, origin_image, height_width, fov_vert_hor=(60.0, 60.0) ):
+    '''Extracts a gnomonic viewport with height_width from origin_image 
+    at center_lat_lon with field of view fov_vert_hor.
+    '''
+    org_height_width, _ = origin_image.shape[:2], origin_image.shape[-1]
+    height, width = height_width
+    
+    if len(origin_image.shape) == 3:
+        result_image = np.zeros((height, width, 3))
+    else:
+        result_image = np.zeros((height, width))        
+
+    sphere_radius_lon = width / (2.0 * np.tan(np.radians(fov_vert_hor[1] / 2.0)))
+    sphere_radius_lat = height / (2.0 * np.tan(np.radians(fov_vert_hor[0] / 2.0)))
+
+    y, x = np.mgrid[0:height, 0:width]
+    x_y_hom = np.column_stack([x.ravel(), y.ravel(), np.ones(len(x.ravel()))])
+
+    K_inv = np.zeros((3, 3))
+    K_inv[0, 0] = 1.0/sphere_radius_lon
+    K_inv[1, 1] = 1.0/sphere_radius_lat
+    K_inv[0, 2] = -width/(2.0*sphere_radius_lon)
+    K_inv[1, 2] = -height/(2.0*sphere_radius_lat)
+    K_inv[2, 2] = 1.0
+
+    R_lat = np.zeros((3,3))
+    R_lat[0,0] = 1.0
+    R_lat[1,1] = np.cos(np.radians(-center_lat_lon[0]))
+    R_lat[2,2] = R_lat[1,1]
+    R_lat[1,2] = -1.0 * np.sin(np.radians(-center_lat_lon[0]))
+    R_lat[2,1] = -1.0 * R_lat[1,2]
+
+    R_lon = np.zeros((3,3))
+    R_lon[2,2] = 1.0
+    R_lon[0,0] = np.cos(np.radians(-center_lat_lon[1]))
+    R_lon[1,1] = R_lon[0,0]
+    R_lon[0,1] = - np.sin(np.radians(-center_lat_lon[1]))
+    R_lon[1,0] = - R_lon[0,1]
+
+    R_full = np.matmul(R_lon, R_lat)
+
+    dot_prod = np.sum(np.matmul(R_full, K_inv).reshape(1,3,3) * x_y_hom.reshape(-1, 1, 3), axis=2)
+
+    sphere_points = dot_prod/np.linalg.norm(dot_prod, axis=1, keepdims=True)
+
+    lat = np.degrees(np.arccos(sphere_points[:, 2]))
+    lon = np.degrees(np.arctan2(sphere_points[:, 0], sphere_points[:, 1]))
+
+    lat_lon = np.column_stack([lat, lon])
+    lat_lon = np.mod(lat_lon, np.array([180.0, 360.0]))
+
+    org_img_y_x = lat_lon / np.array([180.0, 360.0]) * np.array(org_height_width)
+    org_img_y_x = np.clip(org_img_y_x, 0.0, np.array(org_height_width).reshape(1, 2) - 1.0).astype(int)
+    org_img_y_x = org_img_y_x.astype(int)
+    
+    if len(origin_image.shape) == 3:
+        result_image[x_y_hom[:, 1].astype(int), x_y_hom[:, 0].astype(int), :] = origin_image[org_img_y_x[:, 0],
+                                                                     org_img_y_x[:, 1], :]  
+    else:
+        result_image[x_y_hom[:, 1].astype(int), x_y_hom[:, 0].astype(int)] = origin_image[org_img_y_x[:, 0],
+                                                                     org_img_y_x[:, 1]] 
+    return result_image.astype(float), org_img_y_x
+
+def gnomonic2lat_lon(x_y_coords, fov_vert_hor, center_lat_lon):
+	'''
+	Converts gnomonoic (x, y) coordinates to (latitude, longitude) coordinates.
+	
+	x_y_coords: numpy array of floats of shape (num_coords, 2) 
+	fov_vert_hor: tuple of vertical, horizontal field of view in degree
+	center_lat_lon: The (lat, lon) coordinates of the center of the viewport that the x_y_coords are referencing.
+	'''
+	sphere_radius_lon = 1. / (2.0 * np.tan(np.radians(fov_vert_hor[1] / 2.0)))
+	sphere_radius_lat = 1. / (2.0 * np.tan(np.radians(fov_vert_hor[0] / 2.0)))
+
+	x, y = x_y_coords[:,0], x_y_coords[:,1]
+
+	x_y_hom = np.column_stack([x.ravel(), y.ravel(), np.ones(len(x.ravel()))])
+
+	K_inv = np.zeros((3, 3))
+	K_inv[0, 0] = 1.0/sphere_radius_lon
+	K_inv[1, 1] = 1.0/sphere_radius_lat
+	K_inv[0, 2] = -1./(2.0*sphere_radius_lon)
+	K_inv[1, 2] = -1./(2.0*sphere_radius_lat)
+	K_inv[2, 2] = 1.0
+
+	R_lat = np.zeros((3,3))
+	R_lat[0,0] = 1.0
+	R_lat[1,1] = np.cos(np.radians(-center_lat_lon[0]))
+	R_lat[2,2] = R_lat[1,1]
+	R_lat[1,2] = -1.0 * np.sin(np.radians(-center_lat_lon[0]))
+	R_lat[2,1] = -1.0 * R_lat[1,2]
+
+	R_lon = np.zeros((3,3))
+	R_lon[2,2] = 1.0
+	R_lon[0,0] = np.cos(np.radians(-center_lat_lon[1]))
+	R_lon[1,1] = R_lon[0,0]
+	R_lon[0,1] = - np.sin(np.radians(-center_lat_lon[1]))
+	R_lon[1,0] = - R_lon[0,1]
+
+	R_full = np.matmul(R_lon, R_lat)
+
+	dot_prod = np.sum(np.matmul(R_full, K_inv).reshape(1,3,3) * x_y_hom.reshape(-1, 1, 3), axis=2)
+
+	sphere_points = dot_prod/np.linalg.norm(dot_prod, axis=1, keepdims=True)
+
+	lat = np.degrees(np.arccos(sphere_points[:, 2]))
+	lon = np.degrees(np.arctan2(sphere_points[:, 0], sphere_points[:, 1]))
+
+	lat_lon = np.column_stack([lat, lon])
+	lat_lon = np.mod(lat_lon, np.array([180.0, 360.0]))
+
+	return lat_lon
+
+def angle2img(lat_lon_array, img_height_width):
+	'''
+	Convertes an array of latitude, longitude coordinates to image coordinates with range (0, height) x (0, width)
+	'''
+	return lat_lon_array / np.array([180., 360.]).reshape(1,2) * np.array(img_height_width).reshape(1,2)
+
+def img2angle(x_y_array, img_height_width):
+	'''
+	Convertes an array of latitude, longitude coordinates to image coordinates with range (0, height) x (0, width)
+	'''
+	x = x_y_array[0]
+	y = x_y_array[1]
+	x = x / img_height_width[0] * 360
+	y = y / img_height_width[1] * 180
+	return [x,y]
 
 
+def plot_fov(center_lat_lon, ax, color, fov_vert_hor, height_width):
+	'''
+	Plots the correctly warped FOV at a given center_lat_lon.
+	center_lat_lon: Float tuple of latitude, longitude. Position where FOV is centered
+	ax: The matplotlib axis object that should used for plotting.
+	color: Color of the FOV box.
+	height_width: Height and width of the image.
+	'''
+	# Coordinates for a rectangle.
+	coords = []
+	coords.append([np.linspace(0.0, 1.0, 100), [1.]*100])
+	coords.append([[1.]*100, np.linspace(0.0, 1.0, 100)])
+	coords.append([np.linspace(0.0, 1.0, 100), [0.]*100])
+	coords.append([[0.]*100, np.linspace(0.0, 1.0, 100)])	
+
+	lines = []
+	for coord in coords:
+		lat_lon_array = gnomonic2lat_lon(np.column_stack(coord), fov_vert_hor=fov_vert_hor, 
+										 center_lat_lon=center_lat_lon)
+		img_coord_array = angle2img(lat_lon_array, height_width)
+		lines.append(img_coord_array)
+		
+	split_lines = []
+	for line in lines:
+		diff = np.diff(line, axis=0)
+		wrap_idcs = np.where(np.abs(diff)>np.amin(height_width))[0]
+		
+		if not len(wrap_idcs):
+			split_lines.append(line)
+		else:
+			split_lines.append(line[:wrap_idcs[0]+1])
+			split_lines.append(line[wrap_idcs[0]+1:])
+
+	for line in split_lines:
+		ax.plot(line[:,1], line[:,0], color=color, linewidth=5.0, alpha=0.5)
+
+
+def plot_viewport(scanpath, color, fov_vert_hor, path_to_save, image):
+    # Ensure the output directory exists
+	os.makedirs(path_to_save, exist_ok=True)
+	points_x = [point[0]*image.shape[0] for point in scanpath]
+	points_y = [point[1]*image.shape[1] for point in scanpath]
+	lat_lon = None
+	frame_no = 0
+	for x_, y_ in zip(points_x, points_y):
+			plt.close('all')
+
+			if lat_lon is None:
+				lat_lon = [0,0]
+				lat_lon[1] = ((x_ / image.shape[1]) * 360)
+				lat_lon[0] = ((y_ / image.shape[0]) * 180)
+			else:
+				diff_x = x_ - last_point[0]
+				diff_y = y_ - last_point[1]
+				lat_lon[1] = lat_lon[1] + ((diff_x / image.shape[1]) * 360)
+				lat_lon[0] = lat_lon[0] + ((diff_y / image.shape[0]) * 180)
+			last_point = [x_,y_] 
+
+			fig, ax = plt.subplots(frameon=False, figsize=(16,9))
+			
+			ax.grid(b=False)
+			plt.setp(ax.get_xticklabels(), visible=False)
+			plt.setp(ax.get_yticklabels(), visible=False)
+
+			ax.imshow(image)
+			ax.axis('tight')
+			ax.set_xlim([0,image.shape[1]])
+			ax.set_ylim([image.shape[0], 0])
+
+			fov_vert = 106.188
+			aspect_ratio = 0.82034051
+			fov_hor = fov_vert * aspect_ratio
+			fov_vert_hor = np.array([fov_vert, fov_hor])
+
+			ax.plot(x_, y_, marker='o', markersize=12., color=color, alpha=.8)
+			plot_fov(lat_lon, ax, color, fov_vert_hor, height_width=np.array([image.shape[0], image.shape[1]]))
+
+
+			fig.savefig(os.path.join(path_to_save, "%06d.png"%frame_no), bbox_inches='tight', pad_inches=0, dpi=160)
+			frame_no += 1
+			fig.clf()
+   
+
+def plot_all_viewports(scanpaths, fov_vert_hor, path_to_save, name):
+    # Ensure the output directory exists
+    os.makedirs(path_to_save, exist_ok=True)
+    
+    cmap = cm.get_cmap('rainbow', len(scanpaths))  # Obtiene el mapa de colores
+    colors = [cmap(i) for i in range(len(scanpaths))]
+    
+    # Determine the number of frames based on the longest scanpath
+    max_length = max(len(scanpath) for scanpath in scanpaths)
+    # Initialize a list to hold the last point of each scanpath for diff calculation
+    last_points = [None] * len(scanpaths)
+    lat_lon = [None] * len(scanpaths)
+    
+    if os.path.exists("./data/"+ name + "/original/"):
+        original_video_path = "./data/"+ name + "/original/"
+    else:
+        original_video_path = None
+    
+    if original_video_path:
+          video_frames = sorted([f for f in os.listdir(original_video_path) if f.endswith('.png') or f.endswith('.jpg')])
+    else:
+      image = np.ones((720, 1280, 3), dtype=np.uint8) * 255
+      
+    fov_vert = 106.188
+    aspect_ratio = 0.82034051
+    fov_hor = fov_vert * aspect_ratio
+    fov_vert_hor = np.array([fov_vert, fov_hor])
+    
+    for frame_no in range(max_length):
+        plt.close('all')  # Close all existing plots to avoid memory issues
+        if original_video_path:
+          image = mpimg.imread(os.path.join(original_video_path, video_frames[frame_no]))
+        fig, ax = plt.subplots(frameon=False, figsize=(16, 9))
+        ax.grid(False)
+        plt.setp(ax.get_xticklabels(), visible=False)
+        plt.setp(ax.get_yticklabels(), visible=False)
+        ax.imshow(image)
+        ax.axis('tight')
+        ax.set_xlim([0, image.shape[1]])
+        ax.set_ylim([image.shape[0], 0])
+        
+        # Iterate through each scanpath and plot the current point if it exists
+        for i, (scanpath, color) in enumerate(zip(scanpaths, colors)):
+            if frame_no < len(scanpath):
+                point = scanpath[frame_no]
+                x_ = point[1] * image.shape[1]
+                y_ = point[0] * image.shape[0]
+
+                if lat_lon[i] is None:
+                    # Initialize lat_lon for the first point in each scanpath
+                    lat_lon[i] = [0, 0]
+                    lat_lon[i][1] = ((x_ / image.shape[1]) * 360)
+                    lat_lon[i][0] = ((y_ / image.shape[0]) * 180)
+                else:
+                    # Calculate diff_x and diff_y with respect to the last point
+                    diff_x = x_ - last_points[i][0]
+                    diff_y = y_ - last_points[i][1]
+                    # Update lat_lon based on the differences
+                    lat_lon[i][1] += ((diff_x / image.shape[1]) * 360)
+                    lat_lon[i][0] += ((diff_y / image.shape[0]) * 180) 
+
+                # Update the last_points list with the current point
+                last_points[i] = [x_, y_]
+
+                ax.plot(x_, y_, marker='o', markersize=12., color=color, alpha=.8)
+                
+                plot_fov(lat_lon[i], ax, color, fov_vert_hor, height_width=np.array([image.shape[0], image.shape[1]]))
+
+        # Save the figure for the current frame
+        fig.savefig(f"{path_to_save}/frame_{str(frame_no).zfill(5)}.png", bbox_inches='tight', pad_inches=0, dpi=160)
+        fig.clf()
+        
+
+def plot_thumbnail(scanpath, path_to_save, name):
+    # Ensure the output directory exists
+    os.makedirs(path_to_save, exist_ok=True)
+  
+    if os.path.exists("./data/"+ name + "/original/"):
+        original_video_path = "./data/"+ name + "/original/"
+    else:
+      print("Could not find the original video directory")
+      return
+    
+    video_frames = sorted([f for f in os.listdir(original_video_path) if f.endswith('.png') or f.endswith('.jpg')])
+
+    lat_lon = None
+    last_point = None
+    height_width = [800,800]
+    for frame_no in range(len(scanpath)):
+        plt.close('all')  # Close all existing plots to avoid memory issues
+        image = mpimg.imread(os.path.join(original_video_path, video_frames[frame_no]))
+        point = scanpath[frame_no]
+        x_ = point[1] * image.shape[1]
+        y_ = point[0] * image.shape[0]
+
+        if lat_lon is None:
+          # Initialize lat_lon for the first point in each scanpath
+          lat_lon = [0, 0]
+          lat_lon[1] = ((x_ / image.shape[1]) * 360)
+          lat_lon[0] = ((y_ / image.shape[0]) * 180)
+        else:
+          # Calculate diff_x and diff_y with respect to the last point
+          diff_x = x_ - last_point[0]
+          diff_y = y_ - last_point[1]
+          # Update lat_lon based on the differences
+          lat_lon[1] += ((diff_x / image.shape[1]) * 360)
+          lat_lon[0] += ((diff_y / image.shape[0]) * 180)
+        # Update the last_points list with the current point
+        last_point = [x_, y_]
+        thumbnail_image, org_img_y_x = get_gnomonic_hom(lat_lon, image, height_width, fov_vert_hor=(60.0, 60.0))
+        fig, ax = plt.subplots(frameon=False, figsize=(16, 9))
+        ax.grid(False)
+        plt.setp(ax.get_xticklabels(), visible=False)
+        plt.setp(ax.get_yticklabels(), visible=False)
+        ax.imshow(thumbnail_image)
+        ax.axis('tight')
+        ax.set_xlim([0, height_width[1]])
+        ax.set_ylim([height_width[0], 0])
+
+        # Save the figure for the current frame
+        fig.savefig(f"{path_to_save}/frame_{str(frame_no).zfill(5)}.png", bbox_inches='tight', pad_inches=0, dpi=160)
+        fig.clf()

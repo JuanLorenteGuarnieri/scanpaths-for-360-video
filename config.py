@@ -3,9 +3,9 @@
 #####################################################################################
 
 # Indicates if the program should create a new scanpath/s
-generate = True
+generate = False
 # Indicates if the scanpath sould be used to create a video with the scanpath overlapping it
-visualize = True
+visualize = False
 # Indicates if a scanpath sould be analyzed with some metrics
 analyze = True
 
@@ -39,14 +39,22 @@ inhibition_radius = 20  # Radius around selected points where saliency will be r
 inhibition_decay = 0.9  # Factor by which saliency is reduced within the inhibition radius
 inhibition_history_length = 5  # Number of recent points to consider for inhibition
 
+equator_bias = False # if True decrease the saliency of Y far from the equator
+bias_strength = 1.0 # Strength of the equatorial bias to increase the saliency of points near the horizontal center
+
+fixation_distance = True # if True decrease the saliency of points based on their distance from a current fixation point
+fixation_angle = 5
+
 
 #####################################################################################
 # Scanpath visualizer parameters
 #####################################################################################
+# type of visualizer: "preview" or "multi" or "thumbnail"
+v_type = "thumbnail"
 
 # Indicates the file where the visualizer will load the scanpaths from
-v_name = "input_2"
-v_parameters = '_N5_inhibition_saliency_R20_D0.9_L5'
+v_name = "elephant"
+v_parameters = '_N100_inhibition_saliency_R20_D0.9_L5'
 
 
 # Indicates the scanpath numer i who will be loaded to be visualize [1 ... N]

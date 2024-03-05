@@ -7,6 +7,7 @@ from tqdm import tqdm
 import cv2
 import os
 import re
+import config
 
 def visualize_image_scanpath(input_image_path, generated_scanpaths, prefix="scanpath_prediction_", path_to_save="./outputs", overlay_image_path=None, overlay_alpha=0.4, _base_name=''):
     """
@@ -101,10 +102,11 @@ def visualize_video_scanpath(video_frames_folder, scanpaths, path_to_save, prefi
     # Ensure the output directory exists
     os.makedirs(path_to_save, exist_ok=True)
 
-    # Flatten the list of scanpaths if it's nested
-    flattened_scanpaths = [val for sublist in scanpaths for val in sublist]
 
     if generated:
+        # Flatten the list of scanpaths if it's nested
+        flattened_scanpaths = [val for sublist in scanpaths for val in sublist]
+
         # Get a sorted list of video frame files
         video_frames = sorted([f for f in os.listdir(video_frames_folder) if f.endswith('.png') or f.endswith('.jpg')])
 
@@ -132,36 +134,38 @@ def visualize_video_scanpath(video_frames_folder, scanpaths, path_to_save, prefi
             # Visualize the current and previous scanpath points on the image
             visualize_image_scanpath(input_image_path, [current_scanpath], prefix, path_to_save, overlay_image_path, overlay_alpha)
     else:
+        selected_scanpath = scanpaths[config.i_scanpath]
+        # Flatten the list of scanpaths if it's nested
+        flattened_scanpaths = [val for sublist in selected_scanpath for val in sublist]
         input_image_path = None
         # Get a sorted list of video frame files
         if video_frames_folder:
             video_frames = sorted([f for f in os.listdir(video_frames_folder) if f.endswith('.png') or f.endswith('.jpg')])
         if overlay_folder:
             video_frames_overlay = sorted([f for f in os.listdir(overlay_folder) if f.endswith('.png') or f.endswith('.jpg')])
-        
-        # Iterate through each frame with tqdm for a progress bar
-        for idx, frame_file in tqdm(enumerate(scanpaths), total=len(scanpaths), desc="Processing frames", unit="frame", ncols=100):
-            if video_frames_folder:
-                input_image_path = os.path.join(video_frames_folder, video_frames[idx])
-            # Calculate the start index for the scanpath history
-            start_idx = max(0, idx * 2 - history_length * 2)
-            end_idx = idx * 2 + 2  # Ensure we include the current point
-            current_scanpath = flattened_scanpaths[start_idx:end_idx]
+            # Iterate through each frame with tqdm for a progress bar
+            for idx, frame_file in tqdm(enumerate(selected_scanpath), total=len(selected_scanpath), desc="Processing frames", unit="frame", ncols=100):
+                if video_frames_folder:
+                    input_image_path = os.path.join(video_frames_folder, video_frames[idx])
+                # Calculate the start index for the scanpath history
+                start_idx = max(0, idx * 2 - history_length * 2)
+                end_idx = idx * 2 + 2  # Ensure we include the current point
+                current_scanpath = flattened_scanpaths[start_idx:end_idx]
 
-            # If there's an overlay folder provided, prepare the overlay image path for the current frame
-            if overlay_folder:
-                overlay_image_path = os.path.join(overlay_folder, video_frames_overlay[idx])  # Assuming same naming convention
-                if not os.path.exists(overlay_image_path):
-                    overlay_image_path = None  # Handle missing overlay image gracefully
-            else:
-                overlay_image_path = None
+                # If there's an overlay folder provided, prepare the overlay image path for the current frame
+                if overlay_folder:
+                    overlay_image_path = os.path.join(overlay_folder, video_frames_overlay[idx])  # Assuming same naming convention
+                    if not os.path.exists(overlay_image_path):
+                        overlay_image_path = None  # Handle missing overlay image gracefully
+                else:
+                    overlay_image_path = None
 
-            # Generate a filename for the output image
-            if video_frames_folder:
-                base_name = os.path.splitext(video_frames[idx])[0]
-            else:
-                base_name = str(idx).zfill(5)
-            output_file_name = f"{prefix}{base_name}.png"
+                # Generate a filename for the output image
+                if video_frames_folder:
+                    base_name = os.path.splitext(video_frames[idx])[0]
+                else:
+                    base_name = str(idx).zfill(5)
+                output_file_name = f"{prefix}{base_name}.png"
 
-            # Visualize the current and previous scanpath points on the image
-            visualize_image_scanpath(input_image_path, [current_scanpath], prefix, path_to_save, overlay_image_path, overlay_alpha, _base_name = base_name)
+                # Visualize the current and previous scanpath points on the image
+                visualize_image_scanpath(input_image_path, [current_scanpath], prefix, path_to_save, overlay_image_path, overlay_alpha, _base_name = base_name)
