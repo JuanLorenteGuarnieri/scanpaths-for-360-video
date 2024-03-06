@@ -284,7 +284,6 @@ def adjust_saliency_by_angle(saliency_map, current_point, angle):
     rows, cols = saliency_map.shape
     # Calculate max_distance based on the angle, where 2*pi radians = full width of the image
     max_distance = (np.deg2rad(angle) / (2 * np.pi)) * cols
-    max_distance=cols/10
 
     for y in range(rows):
         for x in range(cols):

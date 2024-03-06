@@ -8,6 +8,7 @@ import shutil
 import os
 import cv2
 import json
+from itertools import combinations
 
 scanpaths = []
 
@@ -22,17 +23,51 @@ def analyzer():
     with open("./output_scanpaths/"+config.a_name + config.a_parameters + ".scanpaths", 'r') as file:
         scanpaths = json.load(file)
 
-    # scanpath_array1 = np.array(scanpaths[0])
-    # scanpath_array2 = np.array(scanpaths[1])
-    # print(metrics.levenshtein_distance(scanpath_array1,scanpath_array2, 1,1)) #NO OK
+    scanpaths_scaled = [[[int(x * 100), int(y * 100)] for x, y in scanpath] for scanpath in scanpaths]
 
-    # print(metrics.REC(scanpaths[0],scanpaths[0], 0.1)) #NO OK
+    dtw_scores, det_scores, rec_scores, lev_scores, tde_scores, eye_scores, euc_scores, frech_scores = [], [], [], [], [], [], [], []
 
-    # print(metrics.DET(scanpaths[0],scanpaths[1], 1)) #NO OK
+    # metrics.SIM(saliency_map, saliency_map_gt) # predicted saliency map VS ground truth saliency map
+    # metrics.mannan_distance(sp1,sp2, 100, 100, PR=None, QR=None) # PR y QR son scanpaths random
 
-    print(metrics.DTW(scanpaths[0],scanpaths[3])) #OK
+    # metrics.TDE(sp1, sp2, k=3, distance_mode='Mean')
+    # metrics.eyenalysis(sp1, sp2)
+    # metrics.euclidean_distance(sp1, sp2)
+    # metrics.frechet_distance(sp1, sp2)
+    
+    print(metrics.eyenalysis(scanpaths_scaled[0], scanpaths_scaled[1]))
+    return
 
-    print(f"Scanpath analysis complete")
+    for sp1, sp2 in combinations(scanpaths_scaled, 2):
+        rec_score = [0] * 8  # Reserva espacio para 4 métricas
+        rec_score[0] = metrics.DTW(sp1, sp2)
+        rec_score[1] = metrics.DET(sp1, sp2, 99)
+        rec_score[2] = metrics.REC(sp1, sp2, 10)
+        rec_score[3] = metrics.levenshtein_distance(np.array(sp1), np.array(sp2), 100, 100)
+        rec_score[4] = metrics.TDE(sp1, sp2, k=3, distance_mode='Mean')
+        rec_score[5] = 0 #metrics.eyenalysis(sp1, sp2)
+        rec_score[6] = metrics.euclidean_distance(sp1, sp2)
+        rec_score[7] = metrics.frechet_distance(sp1, sp2)
+
+        dtw_scores.append(rec_score[0])
+        det_scores.append(rec_score[1])
+        rec_scores.append(rec_score[2])
+        lev_scores.append(rec_score[3])
+        tde_scores.append(rec_score[4])
+        eye_scores.append(rec_score[5])
+        euc_scores.append(rec_score[6])
+        frech_scores.append(rec_score[7])
+
+    average_dtw = np.mean(dtw_scores) if dtw_scores else 0
+    average_det = np.mean(det_scores) if det_scores else 0
+    average_rec = np.mean(rec_scores) if rec_scores else 0
+    average_lev = np.mean(lev_scores) if lev_scores else 0
+    average_tde = np.mean(tde_scores) if tde_scores else 0
+    average_eye = np.mean(eye_scores) if eye_scores else 0
+    average_euc = np.mean(euc_scores) if euc_scores else 0
+    average_frech = np.mean(frech_scores) if frech_scores else 0
+
+    print(f"Average DTW: {average_dtw}\n Average DET: {average_det}\n Average REC: {average_rec}\n Average Levenshtein: {average_lev}\n Average TDE: {average_tde}\n Average eyenalysis: {average_eye}\n Average Euclidean: {average_euc}\n Average Frechet: {average_frech}")
 
 def visualizer():
     # Check if the file exists
