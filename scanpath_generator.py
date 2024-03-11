@@ -39,11 +39,9 @@ def generate_video_random_scanpath(video_frames_folder):
     for _ in video_frames:
         # Generate a random scanpath for the current frame
         frame_scanpath = generate_image_random_scanpath(1)
-        video_scanpath.extend(frame_scanpath)
+        video_scanpath.extend([frame_scanpath])
 
-    result.append(video_scanpath)
-
-    return result
+    return video_scanpath
 
 
 def generate_image_saliency_scanpath(saliency_map_path, length=10):
@@ -98,10 +96,9 @@ def generate_video_saliency_scanpath(saliency_map_folder):
             raise ValueError(f"Saliency map {map_file} could not be loaded.")
 
         frame_scanpath = generate_image_saliency_scanpath(map_path, length=1)
-        video_scanpath.extend(frame_scanpath)
-    result.append(video_scanpath)
+        video_scanpath.extend([frame_scanpath])
 
-    return result
+    return video_scanpath
 
 def generate_image_random_saliency_scanpath(saliency_map_path, percentile, length=10):
     """
@@ -261,14 +258,18 @@ def apply_equatorial_bias(saliency_map):
     rows, cols = saliency_map.shape
     equator = rows / 2
 
-    for y in range(rows):
-        for x in range(cols):
-            distance_to_equator = abs(y - equator)
-            decay_factor = 1 - (distance_to_equator / equator)
-            saliency_map[y, x] += config.bias_strength * decay_factor * saliency_map[y, x]
+    # Create a column vector of decay factors based on distance to equator
+    y_indices = np.arange(rows)
+    distance_to_equator = np.abs(y_indices[:, np.newaxis] - equator)
+    decay_factor = 1 - (distance_to_equator / equator)
+
+    # Apply the equatorial bias across all columns
+    saliency_map += config.bias_strength * decay_factor * saliency_map
 
     # Normalizing the saliency map to keep values within a reasonable range
     saliency_map = np.clip(saliency_map, 0, 1)
+
+    return saliency_map
 
 def adjust_saliency_by_angle(saliency_map, current_point, angle):
     """
@@ -282,20 +283,23 @@ def adjust_saliency_by_angle(saliency_map, current_point, angle):
     - angle: float, the angle in degrees determining the effective 'distance' for saliency adjustment.
     """
     rows, cols = saliency_map.shape
-    # Calculate max_distance based on the angle, where 2*pi radians = full width of the image
+    # Calculate max_distance based on the angle
     max_distance = (np.deg2rad(angle) / (2 * np.pi)) * cols
 
-    for y in range(rows):
-        for x in range(cols):
-            distance = np.sqrt((current_point[0] - x) ** 2 + (current_point[1] - y) ** 2)
-            if distance <= max_distance:
-                decay_factor = 1 - (distance / max_distance)
-                saliency_map[y, x] *= decay_factor
-            else:
-                saliency_map[y, x] = 0  # Set saliency to zero beyond the calculated max distance
+    # Create grid of indices
+    y_indices, x_indices = np.indices((rows, cols))
+    distance = np.sqrt((x_indices - current_point[0]) ** 2 + (y_indices - current_point[1]) ** 2)
+
+    # Calculate decay_factor for each point
+    decay_factor = np.where(distance <= max_distance, 1 - (distance / max_distance), 0)
+
+    # Apply decay_factor to saliency_map
+    saliency_map *= decay_factor
 
     # Normalizing the saliency map to keep values within a reasonable range
     saliency_map = np.clip(saliency_map, 0, 1)
+
+    return saliency_map
 
 
 def generate_video_saliency_scanpath_with_inhibition(saliency_map_folder, inhibition_radius=50, inhibition_decay=0.5, history_length=5, probabilistic_importance_factor=1.0):

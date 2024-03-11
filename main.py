@@ -3,6 +3,7 @@ import scanpath_visualizer as sv
 import scanpath_generator as sg
 import metrics as metrics
 import utils as utils
+from tqdm import tqdm
 import numpy as np
 import shutil
 import os
@@ -12,6 +13,7 @@ from itertools import combinations
 
 scanpaths = []
 
+import csv
 
 def analyzer():
     # Check if the file exists
@@ -22,7 +24,7 @@ def analyzer():
     # Load the scanpaths from the file
     with open("./output_scanpaths/"+config.a_name + config.a_parameters + ".scanpaths", 'r') as file:
         scanpaths = json.load(file)
-
+    # print(scanpaths)
     scanpaths_scaled = [[[int(x * 100), int(y * 100)] for x, y in scanpath] for scanpath in scanpaths]
 
     dtw_scores, det_scores, rec_scores, lev_scores, tde_scores, eye_scores, euc_scores, frech_scores = [], [], [], [], [], [], [], []
@@ -34,29 +36,79 @@ def analyzer():
     # metrics.eyenalysis(sp1, sp2)
     # metrics.euclidean_distance(sp1, sp2)
     # metrics.frechet_distance(sp1, sp2)
-    
-    print(metrics.eyenalysis(scanpaths_scaled[0], scanpaths_scaled[1]))
-    return
 
-    for sp1, sp2 in combinations(scanpaths_scaled, 2):
-        rec_score = [0] * 8  # Reserva espacio para 4 métricas
-        rec_score[0] = metrics.DTW(sp1, sp2)
-        rec_score[1] = metrics.DET(sp1, sp2, 99)
-        rec_score[2] = metrics.REC(sp1, sp2, 10)
-        rec_score[3] = metrics.levenshtein_distance(np.array(sp1), np.array(sp2), 100, 100)
-        rec_score[4] = metrics.TDE(sp1, sp2, k=3, distance_mode='Mean')
-        rec_score[5] = 0 #metrics.eyenalysis(sp1, sp2)
-        rec_score[6] = metrics.euclidean_distance(sp1, sp2)
-        rec_score[7] = metrics.frechet_distance(sp1, sp2)
+    # Inicializamos una lista vacía para almacenar los datos finales
+    datos_agrupados = []
+    grupo_actual = []
+    frame_anterior = -1  # Inicializa a -1 para permitir el guardado del primer frame 0
+    ultimo_frame_guardado = -8  # Para asegurar que el primer frame (0) sea guardado
+    ajuste_realizado = False  # Indica si ya se realizó un ajuste
 
-        dtw_scores.append(rec_score[0])
-        det_scores.append(rec_score[1])
-        rec_scores.append(rec_score[2])
-        lev_scores.append(rec_score[3])
-        tde_scores.append(rec_score[4])
-        eye_scores.append(rec_score[5])
-        euc_scores.append(rec_score[6])
-        frech_scores.append(rec_score[7])
+    with open('D:/TFG/datasets/D-SAV360/gaze_data/gaze_video_1005.csv', 'r') as archivo:
+        lector = csv.DictReader(archivo)
+        for fila in lector:
+            frame_actual = int(fila['frame'])
+            
+            # Solo procede si el frame actual es diferente al anterior,
+            # para evitar guardar múltiples ocurrencias seguidas del mismo frame
+            if frame_actual != frame_anterior:
+                
+                # Si el frame actual es menor que el frame anterior, indica el inicio de una nueva lista
+                if frame_anterior > 0 and frame_actual < frame_anterior:
+                    datos_agrupados.append(grupo_actual)
+                    grupo_actual = []
+                    frame_anterior = -1  # Inicializa a -1 para permitir el guardado del primer frame 0
+                    ultimo_frame_guardado = -8  # Para asegurar que el primer frame (0) sea guardado
+                    ajuste_realizado = False  # Indica si ya se realizó un ajuste
+                    
+                # Calcula la diferencia desde el último frame guardado
+                diferencia = frame_actual - ultimo_frame_guardado
+                
+                # Verifica si es momento de guardar los datos según la lógica ajustada
+                if diferencia >= 8 or (diferencia > 0 and not ajuste_realizado):
+                    # Añade el par [v, u] al grupo actual
+                    grupo_actual.append([float(fila['v']), float(fila['u'])])
+                    
+                    # Actualiza el último frame guardado y marca el ajuste si es necesario
+                    if not ajuste_realizado and diferencia > 0 and diferencia < 8:
+                        ultimo_frame_guardado = frame_actual  # Ajusta a la nueva base
+                        ajuste_realizado = True  # Marca que ya se realizó un ajuste
+                    elif ajuste_realizado:
+                        ultimo_frame_guardado += 8  # Sigue con el incremento regular de 8 frames
+                    else:
+                        ultimo_frame_guardado = frame_actual  # Para el primer frame guardado
+            
+            # Actualiza el frame anterior para la próxima iteración
+            frame_anterior = frame_actual
+        
+        # Añade el último grupo si no está vacío
+        if grupo_actual:
+            datos_agrupados.append(grupo_actual)
+
+    # Ahora 'datos_agrupados' contiene los datos en el formato deseado
+    datos_agrupados_scaled = [[[int(x * 100), int(y * 100)] for x, y in scanpath] for scanpath in datos_agrupados]
+    # print(len(datos_agrupados[1]))
+
+    for sp1 in tqdm(datos_agrupados_scaled , desc="Procesando lista 1"):
+        for sp2 in tqdm(scanpaths_scaled, desc="Comparando con lista 2", leave=False):
+            rec_score = [0] * 8
+            rec_score[0] = metrics.DTW(sp1, sp2)
+            rec_score[1] = metrics.DET(sp1, sp2, 99)
+            rec_score[2] = metrics.REC(sp1, sp2, 10)
+            rec_score[3] = metrics.levenshtein_distance(np.array(sp1), np.array(sp2), 100, 100)
+            rec_score[4] = metrics.TDE(sp1, sp2, k=3, distance_mode='Mean')
+            rec_score[5] = 0 #metrics.eyenalysis(sp1, sp2)
+            rec_score[6] = metrics.euclidean_distance(sp1, sp2)
+            rec_score[7] = 0 #metrics.frechet_distance(sp1, sp2)
+
+            dtw_scores.append(rec_score[0])
+            det_scores.append(rec_score[1])
+            rec_scores.append(rec_score[2])
+            lev_scores.append(rec_score[3])
+            tde_scores.append(rec_score[4])
+            eye_scores.append(rec_score[5])
+            euc_scores.append(rec_score[6])
+            frech_scores.append(rec_score[7])
 
     average_dtw = np.mean(dtw_scores) if dtw_scores else 0
     average_det = np.mean(det_scores) if det_scores else 0
