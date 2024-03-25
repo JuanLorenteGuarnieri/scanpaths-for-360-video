@@ -15,9 +15,9 @@ analyze = True
 
 # Indicates the number of scanpaths to be generated, if visualize option is set use n_scanpaths=1 
 # to avoid generating all videos and overwritting them
-n_scanpaths = 75
+n_scanpaths = 10
 # Path to the folder containing the original frames and saliency maps
-folder_path = './data/1005'
+folder_path = './data/5035'
 # Indicates if the program used for generate scanpaths shows the saliency maps in the output video
 overlay_saliency = False
 # Indicates the number of the last prediction frames that should be shown in the output video
@@ -25,7 +25,7 @@ g_history_length = 10
 
 ### Type of scanpath generator to use ###
 # ('random', 'max_saliency', 'percentile_saliency', 'probabilistic_saliency' or 'inhibition_saliency')
-scanpath_generator_type = 'inhibition_saliency'
+scanpath_generator_type = 'random'
 
 # Percentile for random scanpath generation type 'percentile_saliency' (e.g., 50 for median)
 percentile = 70
@@ -42,7 +42,7 @@ inhibition_history_length = 5  # Number of recent points to consider for inhibit
 equator_bias = True # if True decrease the saliency of Y far from the equator
 bias_strength = 1.0 # Strength of the equatorial bias to increase the saliency of points near the horizontal center
 
-fixation_distance = True # if True decrease the saliency of points based on their distance from a current fixation point
+fixation_distance = True   # if True decrease the saliency of points based on their distance from a current fixation point
 fixation_angle = 5
 
 
@@ -68,6 +68,6 @@ v_history_length = 10
 #####################################################################################
 
 # Indicates the file where the visualizer will load the scanpaths from
-a_name = "1005"
-a_parameters = '_N75_inhibition_saliency_R20_D0.8_L5_FixAngle5'
+a_name = ""
+a_parameters = 'inhibition_saliency_R20_D0.8_L5_EB1.0'
 

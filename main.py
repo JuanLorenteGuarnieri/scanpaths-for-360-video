@@ -85,15 +85,18 @@ def analyzer():
         if grupo_actual:
             datos_agrupados.append(grupo_actual)
 
+    with open("./output_scanpaths/ground_truth.scanpaths", 'r') as file:
+        datos_agrupados = json.load(file)
+        
     # Ahora 'datos_agrupados' contiene los datos en el formato deseado
     datos_agrupados_scaled = [[[int(x * 100), int(y * 100)] for x, y in scanpath] for scanpath in datos_agrupados]
-    # print(len(datos_agrupados[1]))
-
+    # print(len(datos_agrupados))
+    
     for sp1 in tqdm(datos_agrupados_scaled , desc="Procesando lista 1"):
         for sp2 in tqdm(scanpaths_scaled, desc="Comparando con lista 2", leave=False):
             rec_score = [0] * 8
             rec_score[0] = metrics.DTW(sp1, sp2)
-            rec_score[1] = metrics.DET(sp1, sp2, 99)
+            # rec_score[1] = metrics.DET(sp1, sp2, 25)
             rec_score[2] = metrics.REC(sp1, sp2, 10)
             rec_score[3] = metrics.levenshtein_distance(np.array(sp1), np.array(sp2), 100, 100)
             rec_score[4] = metrics.TDE(sp1, sp2, k=3, distance_mode='Mean')

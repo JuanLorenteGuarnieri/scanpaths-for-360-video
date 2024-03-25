@@ -777,6 +777,46 @@ def DET(P,Q, threshold, **kwargs):
 
 	P = np.array(P, dtype=np.float32)
 	Q = np.array(Q, dtype=np.float32)
+	P = P[:min(P.shape[0], Q.shape[0]), :2]
+	Q = Q[:min(P.shape[0], Q.shape[0]), :2]
+
+	c = _C(P, Q, threshold)
+	C = np.sum(c)
+	R = np.triu(c,1).sum()
+
+	# This should be the count of diagonals, not just consecutive '1's in each diagonal
+	diagonals_count = 0
+	for i in range(1, c.shape[0]):
+			diagonal = np.diagonal(c, offset=i)
+			# We need to find all consecutive ones that form a diagonal
+			for group in re.finditer('1+', ''.join(map(str, diagonal.astype(int)))):
+					if group.end() - group.start() >= 2:  # At least two consecutive ones
+							diagonals_count += 1
+
+	if C == 0:  # Avoid division by zero
+			return 0
+	return 100.0 * diagonals_count / C
+
+def DET2(P,Q, threshold, **kwargs):
+	"""
+
+		https://link.springer.com/content/pdf/10.3758%2Fs13428-014-0550-3.pdf
+
+	"""
+	def _C(P, Q, threshold):
+		assert (P.shape == Q.shape)
+		shape = P.shape[0]
+		c = np.zeros((shape, shape))
+
+		for i in range(shape):
+			for j in range(shape):
+				if euclidean(P[i], Q[j]) < threshold:
+					c[i,j] = 1
+		return c
+
+
+	P = np.array(P, dtype=np.float32)
+	Q = np.array(Q, dtype=np.float32)
 	min_len = P.shape[0] if (P.shape[0] < Q.shape[0]) else Q.shape[0]
 	P = P[:min_len,:2]
 	Q = Q[:min_len,:2]
@@ -784,7 +824,7 @@ def DET(P,Q, threshold, **kwargs):
 	c = _C(P, Q, threshold)
 	R = np.triu(c,1).sum()
 
-	counter = 0
+	counter = 0.0
 	for i in range(1,min_len):
 		data = c.diagonal(i)
 		data = ''.join([str(item) for item in data])
