@@ -69,5 +69,5 @@ v_history_length = 10
 
 # Indicates the file where the visualizer will load the scanpaths from
 a_name = ""
-a_parameters = 'inhibition_saliency_R20_D0.8_L5_EB1.0'
+a_parameters = 'inhibition_saliency_R20_D0.8_L5'
 

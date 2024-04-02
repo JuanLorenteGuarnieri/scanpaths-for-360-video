@@ -1,6 +1,7 @@
 import config
 import scanpath_visualizer as sv
 import scanpath_generator as sg
+import gaussian_map_generator as gmg
 import metrics as metrics
 import utils as utils
 from tqdm import tqdm
@@ -296,9 +297,23 @@ def generator():
                 json.dump(scanpaths, file)
 
             print(f"Scanpaths saved to {scanpath_path}")
-
-
+            
 if __name__ == "__main__":
+    
+    # Ejemplo de uso del generador del mapa gaussiano
+    # altura = 200  # Altura de la imagen
+    # anchura = 400  # Anchura de la imagen
+    # punto = (0.5, 0.2)  # Centro del círculo (en coordenadas normalizadas)
+    # radio = 50  # Radio del círculo
+
+    # # Generar la imagen
+    # imagen = gmg.gaussian_map(altura, anchura, punto, radio)
+    
+    # import matplotlib.pyplot as plt
+
+    # plt.imshow(imagen, cmap='gray')
+    # plt.show()
+
     if config.analyze:
         analyzer()
     elif not config.generate and config.visualize:
