@@ -40,7 +40,7 @@ def equirectangular_distance(x, y, center_x, center_y, width, height):
     
     return distance
 
-def gaussian_map(height, width, point, radius, equirectangular=True):
+def gaussian_map(height, width, point, radius=50, equirectangular=True):
     """
     Creates a black image with specified dimensions and draws a white point with a Gaussian gradient around it.
     """

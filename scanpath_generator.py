@@ -72,6 +72,30 @@ def generate_image_saliency_scanpath(saliency_map_path, length=10):
 
     return scanpath
 
+def generate_image_saliency_matrix_scanpath(saliency_map, length=10):
+    """
+    Generates a scanpath based on a saliency map, starting with the maximum saliency point.
+
+    Parameters:
+    - saliency_map_path: str, path to the saliency map image (grayscale).
+    - length: int, the number of points in the scanpath.
+
+    Returns:
+    - A list of coordinates representing the scanpath, normalized to [0, 1].
+    """
+
+    scanpath = []
+    for _ in range(length):
+        # Find the value and location of the maximum saliency
+        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(saliency_map)
+
+        # Normalize the coordinates of the maximum saliency point
+        y_normalized, x_normalized = max_loc[0] / saliency_map.shape[1], max_loc[1] / saliency_map.shape[0]
+        scanpath.extend([x_normalized, y_normalized])
+
+
+    return scanpath
+
 def generate_video_saliency_scanpath(saliency_map_folder):
     """
     Generates a scanpath based on a sequence of saliency maps, such as from a video, starting with the maximum saliency point for each frame.
@@ -163,7 +187,7 @@ def generate_video_random_saliency_scanpath(saliency_map_folder, percentile):
 
     return video_scanpaths
 
-def generate_image_probabilistic_saliency_scanpath(saliency_map_path, probabilistic_importance_factor=1.0):
+def generate_image_probabilistic_saliency_path_scanpath(saliency_map_path, probabilistic_importance_factor=1.0):
     """
     Generates a scanpath based on a saliency map, selecting points probabilistically based on saliency values,
     adjusted by an importance factor.
@@ -179,6 +203,38 @@ def generate_image_probabilistic_saliency_scanpath(saliency_map_path, probabilis
     saliency_map = cv2.imread(saliency_map_path, cv2.IMREAD_GRAYSCALE)
     if saliency_map is None:
         raise ValueError("Saliency map could not be loaded.")
+
+    # Adjust the saliency values by the importance factor
+    adjusted_saliency = np.power(saliency_map.flatten(), probabilistic_importance_factor)
+    total_adjusted_saliency = np.sum(adjusted_saliency)
+    if total_adjusted_saliency == 0:
+        raise ValueError("Adjusted saliency results in zero total saliency.")
+    probabilities = adjusted_saliency / total_adjusted_saliency
+
+    # Choose indices based on the adjusted probability distribution
+    chosen_indices = np.random.choice(len(adjusted_saliency), size=1, p=probabilities)
+
+    # Convert flat indices back to 2D coordinates and normalize
+    scanpath = []
+    for idx in chosen_indices:
+        x, y = divmod(idx, saliency_map.shape[1])  # Convert flat index to 2D coordinates
+        y_normalized, x_normalized = y / saliency_map.shape[1], x / saliency_map.shape[0]
+        scanpath.extend([x_normalized, y_normalized])
+
+    return scanpath
+
+def generate_image_probabilistic_saliency_scanpath(saliency_map, probabilistic_importance_factor=1.0):
+    """
+    Generates a scanpath based on a saliency map, selecting points probabilistically based on saliency values,
+    adjusted by an importance factor.
+
+    Parameters:
+    - saliency_map: matrix with the saliency map image (grayscale).
+    - probabilistic_importance_factor: float, factor to adjust the importance given to higher saliency values.
+
+    Returns:
+    - A list of coordinates representing the scanpath, normalized to [0, 1].
+    """
 
     # Adjust the saliency values by the importance factor
     adjusted_saliency = np.power(saliency_map.flatten(), probabilistic_importance_factor)
@@ -218,7 +274,7 @@ def generate_video_probabilistic_saliency_scanpath(saliency_map_folder, probabil
     for map_file in saliency_maps:
         map_path = os.path.join(saliency_map_folder, map_file)
         # Use the generate_image_probabilistic_saliency_scanpath function for each saliency map
-        frame_scanpath = generate_image_probabilistic_saliency_scanpath(map_path, probabilistic_importance_factor=probabilistic_importance_factor)
+        frame_scanpath = generate_image_probabilistic_saliency_path_scanpath(map_path, probabilistic_importance_factor=probabilistic_importance_factor)
         video_scanpaths.append(frame_scanpath)
 
     return video_scanpaths
@@ -339,7 +395,7 @@ def generate_video_saliency_scanpath_with_inhibition(saliency_map_folder, inhibi
             apply_equatorial_bias(modified_saliency_map)
 
 
-        frame_scanpath = generate_image_probabilistic_saliency_scanpath(map_path, probabilistic_importance_factor=probabilistic_importance_factor)
+        frame_scanpath = generate_image_probabilistic_saliency_scanpath(modified_saliency_map, probabilistic_importance_factor=probabilistic_importance_factor)
 
         # Update recent points list for global inhibition
         recent_points.append((frame_scanpath[0] * saliency_map.shape[1], frame_scanpath[1] * saliency_map.shape[0]))
