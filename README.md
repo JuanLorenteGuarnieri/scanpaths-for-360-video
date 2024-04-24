@@ -25,7 +25,7 @@ scipy==1.6.2
 torch==1.5.1+cu92 
 torchvision==0.6.1+cu92 tqdm
 ```
-
+These torch and torchvision version are not provided by the pip package so you can download [here](https://pytorch.org/get-started/previous-versions/)
 ## Usage
 
 Import the video for which you want to generate the scanpath to the following path:

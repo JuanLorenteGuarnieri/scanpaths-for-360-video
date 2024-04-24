@@ -1,9 +1,13 @@
 __pycache__/
 # Data
 /data/*
+/models/*/
+runs
+checkpoints
 
 # Environments
 .env
 .venv/
+.conda/
 output_scanpaths/*
 viewports/*

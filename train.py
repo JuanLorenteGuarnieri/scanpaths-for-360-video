@@ -8,6 +8,8 @@ import datetime
 import os
 import time
 from torch.utils.data import DataLoader
+import scanpath_generator as sg
+import gaussian_map_generator as gmg
 import models
 from utils import read_txt_file
 from dtw_kldiv import KLSoftDTW
@@ -99,7 +101,7 @@ def train(train_data, val_data, model, device, criterion, lr = 0.001, EPOCHS=10,
 
     return model
 
-def train_scanpathDL(train_data, val_data, model, device, criterion, lr = 0.001, EPOCHS=10, model_name='Model'):
+def train_scanpath_video_predictor(train_data, val_data, model, device, criterion, lr = 0.001, EPOCHS=10, model_name='Model'):
 
     writer = SummaryWriter(os.path.join(config.runs_data_dir, model_name +'_' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + '/'))
     path = os.path.join(config.models_dir, model_name + '_' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
@@ -142,17 +144,46 @@ def train_scanpathDL(train_data, val_data, model, device, criterion, lr = 0.001,
 
 
             model.zero_grad()
+            
+            outputs = []
+            gaussian_map = y[:, 0, :, :, :]
 
-            pred = model(x.to(device), coordconv_matrix.to(device), y[:, 0, :, :, :], device)
-            pred.squeeze(0).squeeze(0)
-            y.squeeze(0).squeeze(0)
+            for t in range(x.shape[1]):
+                # Obtener el frame actual
+                frame_del_video = x[:, t, :, :, :]
+                # print('Gaussian map: ',gaussian_map.shape)
 
-            print('Prediccion: ', pred.shape)
-            print('Ground truth: ', y.shape)
+                # Concatenar el frame actual con coordconv_matrix a lo largo de la dimensión de los canales
+                frame_with_coords = torch.cat((frame_del_video.to(device), coordconv_matrix.to(device), gaussian_map.to(device)), dim=1)
+                # print('Input: ',frame_with_coords.shape)
+
+                # Pasar el frame concatenado a través del encoder y decoder
+                out = model(frame_with_coords)
+                
+                # print('Output: ',out.shape)
+                with torch.no_grad():
+                    out_squeezed=out.squeeze()
+                    # print(out_squeezed.shape)
+                    tSPM=out_squeezed.cpu().detach().numpy()
+                    # print('Output matrix: ',tSPM.shape)
+                    point = sg.generate_image_saliency_matrix_scanpath(tSPM, 1)
+                    gaussian_map= gmg.gaussian_map(out_squeezed.shape[0], out_squeezed.shape[1], (point[0],point[1]))
+                    gaussian_map = gaussian_map.astype(np.float32)
+                    gaussian_map = torch.FloatTensor(gaussian_map).unsqueeze(0).unsqueeze(0)
+                    outputs.append(gaussian_map)
+            pred = torch.stack(outputs, dim=1)
+            pred.squeeze(0)
+            y.squeeze(0)
+
+            # print('Prediccion: ', pred.shape)
+            # print('Ground truth: ', y.shape)
 
             total_loss_DTW = 0
             for i in range(0, pred.shape[0]):
-                loss = criterion(pred[i, 0, :, :], y[ i, 0, :, :])
+                # [b_size(1), len, H, W]
+                # print('Prediccion elem: ', pred[:, i, :, :, :].shape)
+                # print('Ground truth elem: ', y[:, i, :, :, :].shape)
+                loss = criterion(pred[:, i, :, :, :], y[:, i, :, :, :])
                 total_loss_DTW = total_loss_DTW + loss
             total_loss_DTW = total_loss_DTW / pred.shape[0]
 
@@ -175,10 +206,35 @@ def train_scanpathDL(train_data, val_data, model, device, criterion, lr = 0.001,
         # Evaluate on validation set
         with torch.no_grad():
             for x, y in val_data:
+                model.zero_grad()
+                outputs = []
+                gaussian_map = y[:, 0, :, :, :]
+
+                for t in range(x.shape[1]):
+                    frame_del_video = x[:, t, :, :, :]
+                    frame_with_coords = torch.cat((frame_del_video.to(device), coordconv_matrix.to(device), gaussian_map.to(device)), dim=1)
+                    out = model(frame_with_coords)
+
+                    with torch.no_grad():
+                        out_squeezed=out.squeeze()
+                        # print(out_squeezed.shape)
+                        tSPM=out_squeezed.cpu().detach().numpy()
+                        point = sg.generate_image_saliency_matrix_scanpath(tSPM, 1)
+                        gaussian_map= gmg.gaussian_map(out_squeezed.shape[0], out_squeezed.shape[1], (point[0],point[1]))
+                        gaussian_map = gaussian_map.astype(np.float32)
+                        gaussian_map = torch.FloatTensor(gaussian_map).unsqueeze(0).unsqueeze(0)
+                        outputs.append(gaussian_map)
+                pred = torch.stack(outputs, dim=1)
+                pred.squeeze(0)
+                y.squeeze(0)
+
+                total_loss_DTW = 0
+                for i in range(0, pred.shape[0]):
+                    loss = criterion(pred[:, i, :, :, :], y[:, i, :, :, :])
+                    total_loss_DTW = total_loss_DTW + loss
+                total_loss_DTW = total_loss_DTW / pred.shape[0]
+                avg_loss_val += total_loss_DTW
                 counter_val += 1
-                pred = model(x.to(device))
-                loss = criterion(pred[:, :, 0, :, :], y[:, :, 0, :, :].to(device))
-                avg_loss_val += loss.sum().item()
 
         writer.add_scalars('Loss', {'train': avg_loss_train / counter_train, 'val': avg_loss_val / counter_val}, epoch)
         
@@ -205,126 +261,6 @@ def train_scanpathDL(train_data, val_data, model, device, criterion, lr = 0.001,
 
     return model
 
-
-def train_scanpathDL2(train_data, val_data, model, device, criterion, lr = 0.001, EPOCHS=10, model_name='Model'):
-
-    writer = SummaryWriter(os.path.join(config.runs_data_dir, model_name +'_' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + '/'))
-    path = os.path.join(config.models_dir, model_name + '_' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
-    ckp_path = os.path.join(config.ckp_dir, model_name + '_' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")) 
-    os.mkdir(path)
-    os.mkdir(ckp_path)
-
-    optimizer = torch.optim.SGD(model.parameters(), lr=lr) 
-    
-    images, labels = next(iter(train_data))
-    m, n = images.size()[2:4]  # Obtener las dimensiones espaciales: altura (m) y anchura (n)
-
-    # Crear la matriz de coordenadas Y
-    coord_y = torch.arange(m).unsqueeze(1).expand(m, n)
-    # Crear la matriz de coordenadas X
-    coord_x = torch.arange(n).unsqueeze(0).expand(m, n)
-
-    # Apilar las dos matrices para crear la matriz de coordenadas convolucionales
-    coordconv_matrix = torch.stack((coord_x, coord_y), dim=0)
-    # torch.tensor(data_numpy)
-    coordconv_matrix = coordconv_matrix.astype(np.float32)
-
-    coordconv_matrix = torch.FloatTensor(coordconv_matrix)
-    coordconv_matrix = coordconv_matrix.permute(2, 0, 1)
-    
-    model.train()
-
-    model.to(device)
-    criterion.cuda(device)
-    print("Training model ...")
-    epoch_times = []
-    
-    # Training loop
-    for epoch in range(EPOCHS):
-        start_time = time.time()
-        avg_loss_train = 0.
-        avg_loss_val = 0.
-        counter_train = 0
-        counter_val = 0
-
-        for x, y in train_data:
-            model.zero_grad()
-
-            # Inicializar mapas previos con zeros o con el primer frame target si está disponible
-            seq_len = x.size(1)  # Asumiendo que x es de forma [batch_size, seq_len, channels, height, width]
-            spatial_input = torch.zeros_like(x[:, 0, :, :, :]).to(device)
-            output_maps = []
-            all_maps = []
-
-            for step in range(seq_len):
-                # aux = x[:, step, :, :, :]
-                # frame_del_video = aux[0, :3, :, :]
-                # spatial_input2= torch.FloatTensor(spatial_input)
-                # coordconv_matrix2 =  torch.FloatTensor(coordconv_matrix)
-
-                # output_map = model([torch.cat((torch.cat(frame_del_video, 0), torch.cat(spatial_input2, 0), torch.cat(coordconv_matrix2, 0)))].to(device))
-                model(x.to(device), coordconv_matrix)
-                output_maps.append(output_map)
-                spatial_input = ... # Aquí falta incluir la lógica para generar la siguiente entrada espacial
-
-                # Guardamos el mapa de GT para calcular el error DTW más tarde
-                all_maps.append(y[:, step, :, :, :])
-
-            # Ahora computamos la pérdida usando Dynamic Time Warping o la que prefieras
-            final_output = torch.cat(output_maps, dim=1)
-            total_loss_DTW = 0
-            for m in all_maps:
-                total_loss_DTW += criterion(final_output, m.to(device))
-            total_loss_DTW = total_loss_DTW / seq_len
-
-            total_loss_DTW.backward()
-            optimizer.step()
-
-            avg_loss_train += total_loss_DTW.item()
-            counter_train += 1
-
-            # Mostrar información de progreso
-            if counter_train % 20 == 0:
-                print(f"Epoch {epoch}......Step: {counter_train}/{len(train_data)}....... Average Loss for Epoch: {avg_loss_train / counter_train}")
-
-        # Registro del tiempo y pérdida
-        current_time = time.time()
-        print(f"Epoch {epoch}/{EPOCHS}, Total Loss: {avg_loss_train / counter_train}")
-        print(f"Total Time: {current_time - start_time} seconds")
-        epoch_times.append(current_time - start_time)
-
-        # Evaluate on validation set
-        with torch.no_grad():
-            for x, y in val_data:
-                counter_val += 1
-                pred = model(x.to(device))
-                loss = criterion(pred[:, :, 0, :, :], y[:, :, 0, :, :].to(device))
-                avg_loss_val += loss.sum().item()
-
-        writer.add_scalars('Loss', {'train': avg_loss_train / counter_train, 'val': avg_loss_val / counter_val}, epoch)
-        
-        # Save checkpoint and model every 50 epochs
-        if epoch % 50 == 0:
-            torch.save(model, path + '/'+ str(epoch)+ '_model.pth')
-            ckp_path = os.path.join(config.ckp_dir,model_name + '_' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")) 
-            os.mkdir(ckp_path)
-            torch.save({
-            'epoch': epoch,
-            'model_state_dict': model.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
-            'loss': loss,
-            }, ckp_path + '/model.pt')
-    
-    # Save final model and checkpoints
-    torch.save(model, path + '/model.pth')
-    torch.save({
-            'epoch': epoch,
-            'model_state_dict': model.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
-            'loss': loss,
-            }, ckp_path + '/model.pt')
-
-    return model
 
 if __name__ == '__main__':
 
@@ -334,7 +270,7 @@ if __name__ == '__main__':
     # Train SST-Sal
 
     model = models.SST_Sal_scanpath(hidden_dim=config.hidden_dim)
-    criterion = KLWeightedLossSequence()
+    # criterion = KLWeightedLossSequence()
     loss_KLDTW = KLSoftDTW(use_cuda=torch.cuda.is_available())
 
 
@@ -350,6 +286,6 @@ if __name__ == '__main__':
 
     # print(model)
     # model = train(train_data, val_data, model, device, criterion, lr=config.lr, EPOCHS=config.epochs, model_name=config.model_name)
-    model = train_scanpathDL(train_data, val_data, model, device, loss_KLDTW, lr=config.lr, EPOCHS=config.epochs, model_name=config.model_name)
+    model = train_scanpath_video_predictor(train_data, val_data, model, device, loss_KLDTW, lr=config.lr, EPOCHS=config.epochs, model_name=config.model_name)
 
     print("Training finished")

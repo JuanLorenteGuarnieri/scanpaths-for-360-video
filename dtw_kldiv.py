@@ -370,7 +370,7 @@ class KLSoftDTW(torch.nn.Module):
             KL_map_pred = map_pred / (
                     torch.sum(map_pred) + epsilon)  # normalization step to make sure that the map_pred sum to 1
 
-            center_bias = 1 / torch.sum(KL)
+            # center_bias = 1 / torch.sum(KL)
 
             for j in range(final_KL.size(2)):
 
@@ -394,7 +394,7 @@ class KLSoftDTW(torch.nn.Module):
 
         return final_KL
 
-    def forward(self, X, Y, Z):
+    def forward(self, X, Y):
         """
         Compute the soft-DTW value between X and Y
         :param X: One batch of examples, batch_size x seq_len x dims
@@ -403,5 +403,5 @@ class KLSoftDTW(torch.nn.Module):
         """
         # Check the inputs and get the correct implementation
         func_dtw = self._get_func_dtw(X, Y)
-        D_xy = self.dist_func(X, Y, Z)
+        D_xy = self.dist_func(X, Y)
         return func_dtw(D_xy, self.gamma, self.bandwidth)

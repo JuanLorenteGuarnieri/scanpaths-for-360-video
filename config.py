@@ -104,7 +104,7 @@ hidden_dim = 36
 # Percentage of training data intended to validation
 validation_split = 0.2
 # Name of the model ( for saving pruposes)
-model_name = 'SST-Sal-2-epochs'
+model_name = 'scanpath-video-predictor-2-epochs'
 # Path to the folder where the checkpoints will be saved
 ckp_dir = 'checkpoints'
 # Path to the folder where the model will be saved
@@ -117,7 +117,7 @@ runs_data_dir = 'runs'
 #####################################################################################
 # Path to the folder containing the model to be used for inference
 # inference_model = 'models/SST_Sal.pth' # with optical flow
-inference_model = 'models/SST_Sal_wo_OF.pth' # without optical flow
+inference_model = 'models/scanpath-video-predictor-2-epochs.pth' # without optical flow
 # Path to the folder where the inference results will be saved
 results_dir = 'results'
 # Path to the folder containing the videos to be used for inference

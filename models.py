@@ -28,7 +28,7 @@ class SST_Sal(nn.Module):
             outputs.append(out)
         return torch.stack(outputs, dim=1)
 
-class SST_Sal_scanpath(nn.Module):
+class SST_Sal_scanpath2(nn.Module):
     def __init__(self, input_dim=6, hidden_dim=36, output_dim=1):
         super(SST_Sal_scanpath, self).__init__()
 
@@ -72,3 +72,21 @@ class SST_Sal_scanpath(nn.Module):
             gaussian_map = torch.FloatTensor(gaussian_map).unsqueeze(0).unsqueeze(0)
             outputs.append(gaussian_map)
         return torch.stack(outputs, dim=1)
+
+class SST_Sal_scanpath(nn.Module):
+    def __init__(self, input_dim=6, hidden_dim=36, output_dim=1):
+        super(SST_Sal_scanpath, self).__init__()
+
+        self.encoder = Modules.SpherConvLSTM_EncoderCell(input_dim, hidden_dim)
+        self.decoder = Modules.SpherConvLSTM_DecoderCell(hidden_dim, output_dim)
+
+
+    def forward(self, x):
+
+        b, _, h, w = x.size()
+        state_e = self.encoder.init_hidden(b, (h, w))
+        state_d = self.decoder.init_hidden(b, (h//2, w//2))
+
+        out, state_e = self.encoder(x, state_e)
+        out, state_d = self.decoder(out, state_d)
+        return out
