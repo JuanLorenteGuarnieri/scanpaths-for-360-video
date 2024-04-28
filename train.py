@@ -101,15 +101,38 @@ def train(train_data, val_data, model, device, criterion, lr = 0.001, EPOCHS=10,
 
     return model
 
+def get_gradients_hook(writer, layer_name, param_name, epoch):
+    def hook(grad):
+        writer.add_histogram(f"{layer_name}/{param_name}_gradients", grad, epoch)
+    return hook
+
+def get_activations_hook(writer, layer_name, epoch):
+    def hook(module, input, output):
+        if isinstance(output, tuple):
+            tensor_output = output[0]  # Accede solo al tensor
+            writer.add_histogram(f"{layer_name}_activations", tensor_output, epoch)
+        else:
+            # Manejo del caso en el que la salida no sea una tupla
+            writer.add_histogram(f"{layer_name}_activations", output, epoch)
+    return hook
+
+def register_activation_hooks(model, writer, epoch):
+    for name, module in model.named_modules():
+        if name in ['encoder', 'decoder']:  # Cambia esto según los nombres específicos que quieras
+            module.register_forward_hook(get_activations_hook(writer, name, epoch))
+
+
 def train_scanpath_video_predictor(train_data, val_data, model, device, criterion, lr = 0.001, EPOCHS=10, model_name='Model'):
 
     writer = SummaryWriter(os.path.join(config.runs_data_dir, model_name +'_' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + '/'))
+    # register_activation_hooks(model, writer, epoch=0)
+
     path = os.path.join(config.models_dir, model_name + '_' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
     ckp_path = os.path.join(config.ckp_dir, model_name + '_' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")) 
     os.makedirs(path, exist_ok=True)
     os.makedirs(ckp_path, exist_ok=True)
 
-    optimizer = torch.optim.SGD(model.parameters(), lr=lr) 
+    optimizer = torch.optim.SGD(model.parameters(), momentum=0.9,lr=lr) 
     
     images, labels = next(iter(train_data))
     m, n = images.size()[3:5]  # Obtener las dimensiones espaciales: altura (m) y anchura (n)
@@ -125,9 +148,16 @@ def train_scanpath_video_predictor(train_data, val_data, model, device, criterio
     # coordconv_matrix = coordconv_matrix.astype(np.float32)
 
     coordconv_matrix = torch.FloatTensor(coordconv_matrix).unsqueeze(0)
+    # print(coordconv_matrix.shape)
     model.train()
 
     model.to(device)
+    # example_tensor = torch.rand(1, 6, 240, 320)
+    # print(example_tensor.shape)
+
+    # state_e, state_d = model.init(example_tensor.to(device))
+    # writer.add_graph(model, (example_tensor.to(device), state_e, state_d))
+    # writer.add_graph(model, [example_tensor, state_e, state_d])
     criterion.cuda(device)
     print("Training model ...")
     epoch_times = []
@@ -141,25 +171,35 @@ def train_scanpath_video_predictor(train_data, val_data, model, device, criterio
         counter_val = 0
             
         for x, y in train_data:
-
+            
 
             model.zero_grad()
             
             outputs = []
             gaussian_map = y[:, 0, :, :, :]
+            frame_del_video = x[:, 0, :, :, :]
+            frame_with_coords = torch.cat((frame_del_video.to(device), coordconv_matrix.to(device), gaussian_map.to(device)), dim=1)
+
+            state_e, state_d = model.init(frame_with_coords)
 
             for t in range(x.shape[1]):
                 # Obtener el frame actual
                 frame_del_video = x[:, t, :, :, :]
+                writer.add_image('train/frame_del_video', frame_del_video[0,:,:,:], global_step=epoch * len(train_data) + counter_train)
+
                 # print('Gaussian map: ',gaussian_map.shape)
+                writer.add_image('train/gaussian_map', gaussian_map[0,:,:,:], global_step=epoch * len(train_data) + counter_train)
 
                 # Concatenar el frame actual con coordconv_matrix a lo largo de la dimensión de los canales
                 frame_with_coords = torch.cat((frame_del_video.to(device), coordconv_matrix.to(device), gaussian_map.to(device)), dim=1)
                 # print('Input: ',frame_with_coords.shape)
 
                 # Pasar el frame concatenado a través del encoder y decoder
-                out = model(frame_with_coords)
-                
+                out, state_e, state_d = model(frame_with_coords, state_e, state_d)
+                outputs.append(out)
+                out2 = out
+                writer.add_image('train/tspm', out2.squeeze(0), global_step=epoch * len(train_data) + counter_train)
+
                 # print('Output: ',out.shape)
                 with torch.no_grad():
                     out_squeezed=out.squeeze()
@@ -170,25 +210,39 @@ def train_scanpath_video_predictor(train_data, val_data, model, device, criterio
                     gaussian_map= gmg.gaussian_map(out_squeezed.shape[0], out_squeezed.shape[1], (point[0],point[1]))
                     gaussian_map = gaussian_map.astype(np.float32)
                     gaussian_map = torch.FloatTensor(gaussian_map).unsqueeze(0).unsqueeze(0)
-                    outputs.append(gaussian_map)
+                    
             pred = torch.stack(outputs, dim=1)
             pred.squeeze(0)
             y.squeeze(0)
+            # print(pred)
+            # print(outputs)
+            # print(pred.shape)
 
             # print('Prediccion: ', pred.shape)
             # print('Ground truth: ', y.shape)
 
             total_loss_DTW = 0
-            for i in range(0, pred.shape[0]):
+            for i in range(0, pred.shape[1]):
                 # [b_size(1), len, H, W]
                 # print('Prediccion elem: ', pred[:, i, :, :, :].shape)
                 # print('Ground truth elem: ', y[:, i, :, :, :].shape)
-                loss = criterion(pred[:, i, :, :, :], y[:, i, :, :, :])
+                loss = criterion(pred[:, i, :, :, :], y[:, i, :, :, :].to(device))
                 total_loss_DTW = total_loss_DTW + loss
             total_loss_DTW = total_loss_DTW / pred.shape[0]
+            # print(pred)
 
-            # loss.sum().backward()
-            # optimizer.step()
+            total_loss_DTW.backward()
+            # Aplicar clipping de gradiente ya que estos tiendes a explotar
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            optimizer.step()
+            for name, param in model.named_parameters():
+                # if param.grad is not None:
+                #     print(f"Gradiente para {name}: norma {param.grad.norm()}")
+                # else:
+                #     print(f"Gradiente para {name}: None encontrado")
+                # layer_name, param_name = name.split('.')
+                # param.register_hook(get_gradients_hook(writer, layer_name, param_name, epoch))
+                writer.add_histogram(f'params/{name}', param, epoch)
 
             # avg_loss_train += loss.sum().item()
             avg_loss_train += total_loss_DTW
@@ -209,11 +263,13 @@ def train_scanpath_video_predictor(train_data, val_data, model, device, criterio
                 model.zero_grad()
                 outputs = []
                 gaussian_map = y[:, 0, :, :, :]
+                
+                state_e, state_d = model.init(frame_with_coords)
 
                 for t in range(x.shape[1]):
                     frame_del_video = x[:, t, :, :, :]
                     frame_with_coords = torch.cat((frame_del_video.to(device), coordconv_matrix.to(device), gaussian_map.to(device)), dim=1)
-                    out = model(frame_with_coords)
+                    out, state_e, state_d = model(frame_with_coords, state_e, state_d)
 
                     with torch.no_grad():
                         out_squeezed=out.squeeze()
@@ -229,7 +285,7 @@ def train_scanpath_video_predictor(train_data, val_data, model, device, criterio
                 y.squeeze(0)
 
                 total_loss_DTW = 0
-                for i in range(0, pred.shape[0]):
+                for i in range(0, pred.shape[1]):
                     loss = criterion(pred[:, i, :, :, :], y[:, i, :, :, :])
                     total_loss_DTW = total_loss_DTW + loss
                 total_loss_DTW = total_loss_DTW / pred.shape[0]
@@ -258,7 +314,7 @@ def train_scanpath_video_predictor(train_data, val_data, model, device, criterio
             'optimizer_state_dict': optimizer.state_dict(),
             'loss': loss,
             }, ckp_path + '/model.pt')
-
+    writer.close()
     return model
 
 
@@ -278,11 +334,11 @@ if __name__ == '__main__':
 
     # train_video360_dataset = RGB_and_OF(config.frames_dir, config.optical_flow_dir, config.gt_dir, video_names_train, config.sequence_length, split='train', resolution=config.resolution)
     # val_video360_dataset = RGB_and_OF(config.frames_dir, config.optical_flow_dir, config.gt_dir, video_names_train, config.sequence_length, split='validation', resolution=config.resolution)
-    train_video360_dataset = RGB_with_GM(config.frames_dir, config.gt_dir, video_names_train, config.sequence_length, split='train', resolution=config.resolution)
-    val_video360_dataset = RGB_with_GM(config.frames_dir, config.gt_dir, video_names_train, config.sequence_length, split='validation', resolution=config.resolution)
+    train_video360_dataset = RGB_with_GM(config.frames_dir, config.gt_dir, video_names_train, config.sequence_length, skip=100, split='train', resolution=config.resolution)
+    val_video360_dataset = RGB_with_GM(config.frames_dir, config.gt_dir, video_names_train, config.sequence_length, skip=100, split='validation', resolution=config.resolution)
 
-    train_data = DataLoader(train_video360_dataset, batch_size=config.batch_size, num_workers=8, shuffle=True)
-    val_data = DataLoader(val_video360_dataset, batch_size=config.batch_size, num_workers=8, shuffle=True)
+    train_data = DataLoader(train_video360_dataset, batch_size=config.batch_size, num_workers=6, shuffle=True)
+    val_data = DataLoader(val_video360_dataset, batch_size=config.batch_size, num_workers=6, shuffle=True)
 
     # print(model)
     # model = train(train_data, val_data, model, device, criterion, lr=config.lr, EPOCHS=config.epochs, model_name=config.model_name)

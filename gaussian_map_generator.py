@@ -17,8 +17,10 @@ def spherical_equirectangular_distance(x, y, center_x, center_y, width, height):
     
     # Use spherical distance formula (law of cosines for spherical trigonometry)
     # Consider a sphere with radius 1 for simplification, as we're interested in relative distance
-    angular_distance = np.arccos(np.sin(center_latitude) * np.sin(latitude) +
-                                 np.cos(center_latitude) * np.cos(latitude) * np.cos(delta_longitude))
+    cos_value = np.sin(center_latitude) * np.sin(latitude) + np.cos(center_latitude) * np.cos(latitude) * np.cos(delta_longitude)
+    cos_value_clipped = np.clip(cos_value, -1.0, 1.0)  # Clip values to avoid errors in arccos
+    angular_distance = np.arccos(cos_value_clipped)
+
     
     # Equirectangular distance will be proportional to the angular distance
     distance = height / np.pi * angular_distance  # Proportional to the height of the image

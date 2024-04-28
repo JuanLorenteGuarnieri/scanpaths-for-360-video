@@ -96,15 +96,15 @@ videos_test_file = 'data/test_split_VRET.txt'
 # Batch size
 batch_size = 1
 # Nº of epochs
-epochs = 1
+epochs = 50
 # Learning rate
-lr = 0.8
+lr = 0.0001
 # Hidden dimension of the model (SST-Sal uses hidden_dim=36)
 hidden_dim = 36
 # Percentage of training data intended to validation
 validation_split = 0.2
 # Name of the model ( for saving pruposes)
-model_name = 'scanpath-video-predictor-2-epochs'
+model_name = 'prueba2-20epochs'
 # Path to the folder where the checkpoints will be saved
 ckp_dir = 'checkpoints'
 # Path to the folder where the model will be saved
