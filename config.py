@@ -50,10 +50,10 @@ fixation_angle = 5
 # Scanpath visualizer parameters
 #####################################################################################
 # type of visualizer: "preview" or "multi" or "thumbnail"
-v_type = "thumbnail"
+v_type = "multi"
 
 # Indicates the file where the visualizer will load the scanpaths from
-v_name = "elephant"
+v_name = "0020"
 v_parameters = '_N100_inhibition_saliency_R20_D0.9_L5'
 
 
@@ -117,7 +117,7 @@ runs_data_dir = 'runs'
 #####################################################################################
 # Path to the folder containing the model to be used for inference
 # inference_model = 'models/SST_Sal.pth' # with optical flow
-inference_model = 'models/scanpath-video-predictor-2-epochs.pth' # without optical flow
+inference_model = 'models/all_videos_50epochs_maxsaliency.pth' # without optical flow
 # Path to the folder where the inference results will be saved
 results_dir = 'results'
 # Path to the folder containing the videos to be used for inference

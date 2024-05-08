@@ -54,11 +54,16 @@ def eval(test_data, model, device, result_imp_path, coordconv_matrix):
             gaussian_map= gmg.gaussian_map(m, n, (0.5,0.5))
             gaussian_map = gaussian_map.astype(np.float32)
             gaussian_map = torch.FloatTensor(gaussian_map).unsqueeze(0).unsqueeze(0)
+            
+            frame_del_video = x[:, 0, :, :, :]
+            frame_with_coords = torch.cat((frame_del_video.to(device), coordconv_matrix.to(device), gaussian_map.to(device)), dim=1)
+            state_e, state_d = model.init(frame_with_coords)
+            
             for t in range(x.shape[1]):  # Loop over time dimension
                 frame_del_video = x[:, t, :, :, :]
 
                 frame_with_coords = torch.cat((frame_del_video.to(device), coordconv_matrix.to(device), gaussian_map.to(device)), dim=1)
-                out = model(frame_with_coords)
+                out, state_e, state_d = model(frame_with_coords, state_e, state_d)
                 out_squeezed = out.squeeze()
                 tSPM = out_squeezed.cpu().detach().numpy()
                 point = sg.generate_image_saliency_matrix_scanpath(tSPM, 1)
@@ -93,7 +98,7 @@ def eval(test_data, model, device, result_imp_path, coordconv_matrix):
                     sal = np.array((sal - torch.min(sal)) / (torch.max(sal) - torch.min(sal)))
                     cv2.imwrite(os.path.join(gauss_map_folder, names[iFrame][bs] + '.png'), (sal * 255).astype(np.uint8))
                     # Guardar tSPMs en una carpeta
-                    sal = outputs[bs, iFrame, 0, :, :].cpu()
+                    sal = tSPMs[bs, iFrame, 0, :, :].cpu()
                     sal = np.array((sal - torch.min(sal)) / (torch.max(sal) - torch.min(sal)))
                     cv2.imwrite(os.path.join(tSPMs_folder, names[iFrame][bs] + '.png'), (sal * 255).astype(np.uint8))
 

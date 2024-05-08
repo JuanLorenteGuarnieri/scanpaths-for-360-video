@@ -4,7 +4,7 @@ __pycache__/
 /models/*/
 runs
 checkpoints
-
+results
 # Environments
 .env
 .venv/
