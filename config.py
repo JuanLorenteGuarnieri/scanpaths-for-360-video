@@ -117,7 +117,7 @@ runs_data_dir = 'runs'
 #####################################################################################
 # Path to the folder containing the model to be used for inference
 # inference_model = 'models/SST_Sal.pth' # with optical flow
-inference_model = 'models/all_videos_50epochs_maxsaliency.pth' # without optical flow
+inference_model = 'models/prueba_lr0-0001.pth' # without optical flow
 # Path to the folder where the inference results will be saved
 results_dir = 'results'
 # Path to the folder containing the videos to be used for inference
