@@ -356,18 +356,19 @@ class RGB_with_GM(Dataset):
                 
 
                 saliency_img = cv2.imread(sal_map_path, cv2.IMREAD_GRAYSCALE)
-                # if saliency_img.shape[1] != self.resolution[1] or saliency_img.shape[0] != self.resolution[0]:  
-                #     saliency_img = cv2.resize(saliency_img, (self.resolution[1], self.resolution[0]),
-                #                                 interpolation=cv2.INTER_AREA)
-                # saliency_img = saliency_img.astype(np.float32)
-                # saliency_img = (saliency_img - np.min(saliency_img)) / (np.max(saliency_img) - np.min(saliency_img))
-                # saliency_img = torch.FloatTensor(saliency_img).unsqueeze(0)
-                # label.append(saliency_img.unsqueeze(0))
-                point = sg.generate_image_saliency_matrix_scanpath(saliency_img, 1)
-                gaussian_map= gmg.gaussian_map(self.resolution[0], self.resolution[1], (point[0],point[1]))
-                gaussian_map = gaussian_map.astype(np.float32)
-                gaussian_map = torch.FloatTensor(gaussian_map).unsqueeze(0)
-                label.append(gaussian_map.unsqueeze(0))
+                saliency_img = cv2.imread(sal_map_path, cv2.IMREAD_GRAYSCALE)
+                if saliency_img.shape[1] != self.resolution[1] or saliency_img.shape[0] != self.resolution[0]:  
+                    saliency_img = cv2.resize(saliency_img, (self.resolution[1], self.resolution[0]),
+                                                interpolation=cv2.INTER_AREA)
+                saliency_img = saliency_img.astype(np.float32)
+                saliency_img = (saliency_img - np.min(saliency_img)) / (np.max(saliency_img) - np.min(saliency_img))
+                saliency_img = torch.FloatTensor(saliency_img).unsqueeze(0)
+                label.append(saliency_img.unsqueeze(0))
+                # point = sg.generate_image_saliency_matrix_scanpath(saliency_img, 1)
+                # gaussian_map= gmg.gaussian_map(self.resolution[0], self.resolution[1], (point[0],point[1]))
+                # gaussian_map = gaussian_map.astype(np.float32)
+                # gaussian_map = torch.FloatTensor(gaussian_map).unsqueeze(0)
+                # label.append(gaussian_map.unsqueeze(0))
 
 
         if self.load_names:

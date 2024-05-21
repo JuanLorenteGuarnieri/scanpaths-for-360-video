@@ -66,7 +66,7 @@ def gaussian_map(height, width, point, radius=50, equirectangular=True):
     intensity = np.exp(-(distance_to_center**2 / (2 * sigma**2)))
     intensity[distance_to_center > radius] = 0  # Ensure intensity is 0 outside the radius
     
-    # Normalize intensity to range [0, 1]
-    image = intensity / np.max(intensity)
+    # Normalize intensity to range [-1, 1]
+    image = ((intensity / np.max(intensity))*2)-1
     
     return image

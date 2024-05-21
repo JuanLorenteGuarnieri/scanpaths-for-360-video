@@ -5,9 +5,9 @@
 # Indicates if the program should create a new scanpath/s
 generate = False
 # Indicates if the scanpath sould be used to create a video with the scanpath overlapping it
-visualize = False
+visualize = True
 # Indicates if a scanpath sould be analyzed with some metrics
-analyze = True
+analyze = False
 
 #####################################################################################
 # Scanpath generator parameters
@@ -50,15 +50,15 @@ fixation_angle = 5
 # Scanpath visualizer parameters
 #####################################################################################
 # type of visualizer: "preview" or "multi" or "thumbnail"
-v_type = "multi"
+v_type = "thumbnail"
 
 # Indicates the file where the visualizer will load the scanpaths from
-v_name = "0020"
-v_parameters = '_N100_inhibition_saliency_R20_D0.9_L5'
+v_name = "001"
+v_parameters = ''
 
 
 # Indicates the scanpath numer i who will be loaded to be visualize [1 ... N]
-i_scanpath = 6
+i_scanpath = 1
 # Indicates the number of the last prediction frames that should be shown in the output video
 v_history_length = 10 
 
@@ -117,7 +117,7 @@ runs_data_dir = 'runs'
 #####################################################################################
 # Path to the folder containing the model to be used for inference
 # inference_model = 'models/SST_Sal.pth' # with optical flow
-inference_model = 'models/prueba_lr0-0001.pth' # without optical flow
+inference_model = 'models/sal_map_adam_lr0-0001_normalization_last_pred_20_skip_20.pth' # without optical flow
 # Path to the folder where the inference results will be saved
 results_dir = 'results'
 # Path to the folder containing the videos to be used for inference
