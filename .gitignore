@@ -1,10 +1,13 @@
 __pycache__/
 # Data
-/data/*
+/data/frames/*/
+/data/saliency_maps/*/
+/data/videos/*
+/data/output
 /models/*/
-runs
-checkpoints
-results
+/runs/*
+/results/*
+/checkpoints/*
 # Environments
 .env
 .venv/

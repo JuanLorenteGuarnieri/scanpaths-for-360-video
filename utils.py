@@ -484,20 +484,20 @@ def plot_fov(center_lat_lon, ax, color, fov_vert_hor, height_width):
 	coords.append([np.linspace(0.0, 1.0, 100), [1.]*100])
 	coords.append([[1.]*100, np.linspace(0.0, 1.0, 100)])
 	coords.append([np.linspace(0.0, 1.0, 100), [0.]*100])
-	coords.append([[0.]*100, np.linspace(0.0, 1.0, 100)])	
+	coords.append([[0.]*100, np.linspace(0.0, 1.0, 100)])
 
 	lines = []
 	for coord in coords:
-		lat_lon_array = gnomonic2lat_lon(np.column_stack(coord), fov_vert_hor=fov_vert_hor, 
+		lat_lon_array = gnomonic2lat_lon(np.column_stack(coord), fov_vert_hor=fov_vert_hor,
 										 center_lat_lon=center_lat_lon)
 		img_coord_array = angle2img(lat_lon_array, height_width)
 		lines.append(img_coord_array)
-		
+
 	split_lines = []
 	for line in lines:
 		diff = np.diff(line, axis=0)
 		wrap_idcs = np.where(np.abs(diff)>np.amin(height_width))[0]
-		
+
 		if not len(wrap_idcs):
 			split_lines.append(line)
 		else:
@@ -530,7 +530,7 @@ def plot_viewport(scanpath, color, fov_vert_hor, path_to_save, image):
 			last_point = [x_,y_] 
 
 			fig, ax = plt.subplots(frameon=False, figsize=(16,9))
-			
+
 			ax.grid(b=False)
 			plt.setp(ax.get_xticklabels(), visible=False)
 			plt.setp(ax.get_yticklabels(), visible=False)
@@ -552,38 +552,37 @@ def plot_viewport(scanpath, color, fov_vert_hor, path_to_save, image):
 			fig.savefig(os.path.join(path_to_save, "%06d.png"%frame_no), bbox_inches='tight', pad_inches=0, dpi=160)
 			frame_no += 1
 			fig.clf()
-   
 
 def plot_all_viewports(scanpaths, fov_vert_hor, path_to_save, name):
     # Ensure the output directory exists
     os.makedirs(path_to_save, exist_ok=True)
-    
+
     cmap = cm.get_cmap('rainbow', len(scanpaths))  # Obtiene el mapa de colores
     colors = [cmap(i) for i in range(len(scanpaths))]
-    
+
     # Determine the number of frames based on the longest scanpath
     max_length = max(len(scanpath) for scanpath in scanpaths)
     # Initialize a list to hold the last point of each scanpath for diff calculation
     last_points = [None] * len(scanpaths)
     lat_lon = [None] * len(scanpaths)
-    
-    if os.path.exists("./data/"+ name + "/original/"):
-        original_video_path = "./data/"+ name + "/original/"
+
+    if os.path.exists("./data/frames/"+ name):
+        original_video_path = "./data/frames/"+ name
     else:
         original_video_path = None
-    
+
     if original_video_path:
           video_frames = sorted([f for f in os.listdir(original_video_path) if f.endswith('.png') or f.endswith('.jpg')])
     else:
       image = np.ones((720, 1280, 3), dtype=np.uint8) * 255
-      
+
     fov_vert = 106.188
     aspect_ratio = 0.82034051
     fov_hor = fov_vert * aspect_ratio
     fov_vert_hor = np.array([fov_vert, fov_hor])
-    
+
     max_length = min(max_length, len(video_frames))
-    
+
     for frame_no in range(max_length):
         plt.close('all')  # Close all existing plots to avoid memory issues
         if original_video_path:
@@ -596,9 +595,9 @@ def plot_all_viewports(scanpaths, fov_vert_hor, path_to_save, name):
         ax.axis('tight')
         ax.set_xlim([0, image.shape[1]])
         ax.set_ylim([image.shape[0], 0])
-        
+
         # Iterate through each scanpath and plot the current point if it exists
-        
+
         for i, (scanpath, color) in enumerate(zip(scanpaths, colors)):
             if frame_no < len(scanpath):
                 point = scanpath[frame_no]
@@ -622,24 +621,24 @@ def plot_all_viewports(scanpaths, fov_vert_hor, path_to_save, name):
                 last_points[i] = [x_, y_]
 
                 ax.plot(x_, y_, marker='o', markersize=12., color=color, alpha=.8)
-                
+
                 plot_fov(lat_lon[i], ax, color, fov_vert_hor, height_width=np.array([image.shape[0], image.shape[1]]))
 
         # Save the figure for the current frame
         fig.savefig(f"{path_to_save}/frame_{str(frame_no).zfill(5)}.png", bbox_inches='tight', pad_inches=0, dpi=160)
         fig.clf()
-        
+
 
 def plot_thumbnail(scanpath, path_to_save, name):
     # Ensure the output directory exists
     os.makedirs(path_to_save, exist_ok=True)
-  
-    if os.path.exists("./data/"+ name + "/original/"):
-        original_video_path = "./data/"+ name + "/original/"
+
+    if os.path.exists("./data/frames/"+ name):
+        original_video_path = "./data/frames/"+ name
     else:
       print("Could not find the original video directory")
       return
-    
+
     video_frames = sorted([f for f in os.listdir(original_video_path) if f.endswith('.png') or f.endswith('.jpg')])
 
     lat_lon = None
@@ -680,59 +679,93 @@ def plot_thumbnail(scanpath, path_to_save, name):
         # Save the figure for the current frame
         fig.savefig(f"{path_to_save}/frame_{str(frame_no).zfill(5)}.png", bbox_inches='tight', pad_inches=0, dpi=160)
         fig.clf()
-        
-def linear_interpolate(x, y, num_points):
-        new_x = []
-        new_y = []
-        for i in range(len(x) - 1):
-            new_x.append(x[i])
-            new_y.append(y[i])
-            for j in range(1, num_points):
-                # Calcular la diferencia mínima considerando la naturaleza circular del eje x
-                delta_x = x[i+1] - x[i]
-                if abs(delta_x) > 0.5:
-                    if delta_x > 0:
-                        delta_x -= 1.0
-                    else:
-                        delta_x += 1.0
-                interpolated_x = x[i] + delta_x * j / num_points
-                # Ajustar interpolated_x para que esté en el rango [0, 1)
-                interpolated_x = interpolated_x % 1.0
 
-                new_x.append(interpolated_x)
-                new_y.append(y[i] + (y[i+1] - y[i]) * j / num_points)
-        new_x.append(x[-1])
-        new_y.append(y[-1])
-        return np.array(new_x), np.array(new_y)
+def linear_interpolate(x, y, num_points):
+    """
+    Perform linear interpolation on given x and y coordinates with a specified number of intermediate points.
+
+    This function interpolates between points on a circular axis, adjusting x-coordinates to stay within the [0, 1) range.
+
+    Parameters:
+    x (list or numpy array): x-coordinates of the original points.
+    y (list or numpy array): y-coordinates of the original points.
+    num_points (int): Number of points to generate between each pair of original points.
+
+    Returns:
+    numpy array: Interpolated x-coordinates.
+    numpy array: Interpolated y-coordinates.
+    """
+    new_x = []
+    new_y = []
+    for i in range(len(x) - 1):
+        new_x.append(x[i])
+        new_y.append(y[i])
+        for j in range(1, num_points):
+            # Calculate the minimum difference considering the circular nature of the x-axis
+            delta_x = x[i + 1] - x[i]
+            if abs(delta_x) > 0.5:
+                if delta_x > 0:
+                    delta_x -= 1.0
+                else:
+                    delta_x += 1.0
+            interpolated_x = x[i] + delta_x * j / num_points
+            # Adjust interpolated_x to be in the range [0, 1)
+            interpolated_x = interpolated_x % 1.0
+
+            new_x.append(interpolated_x)
+            new_y.append(y[i] + (y[i + 1] - y[i]) * j / num_points)
+    new_x.append(x[-1])
+    new_y.append(y[-1])
+    return np.array(new_x), np.array(new_y)
 
 def interpolate_scanpaths(scanpaths, factor=2):
+    """
+    Interpolate a list of scanpaths by adding intermediate points.
+
+    Parameters:
+    scanpaths (list): List of scanpaths, where each scanpath is a list of [y, x] coordinates.
+    factor (int): The factor by which to increase the number of points in each scanpath.
+
+    Returns:
+    list: List of interpolated scanpaths.
+    """
     interpolated_scanpaths = []
     for scanpath in scanpaths:
         points = np.array(scanpath)
         x = points[:, 1]
         y = points[:, 0]
 
-        # Interpolar los puntos
-        num_intermediate_points = factor - 1  # Número de puntos a agregar entre cada par de puntos originales
+        # Interpolate points
+        num_intermediate_points = factor - 1  # Number of points to add between each pair of original points
         new_x, new_y = linear_interpolate(x, y, num_intermediate_points + 1)
 
-        # Combinar nuevos puntos
+        # Combine new points
         interpolated_points = np.vstack((new_y, new_x)).T
         interpolated_scanpaths.append(interpolated_points.tolist())
 
     return interpolated_scanpaths
 
 def interpolate_scanpath(scanpath, factor=2):
+    """
+    Interpolate a single scanpath by adding intermediate points.
+
+    Parameters:
+    scanpath (list): A scanpath represented as a list of [y, x] coordinates.
+    factor (int): The factor by which to increase the number of points in the scanpath.
+
+    Returns:
+    list: Interpolated scanpath.
+    """
     interpolated_scanpath = []
     points = np.array(scanpath)
     x = points[:, 1]
     y = points[:, 0]
 
-    # Interpolar los puntos
-    num_intermediate_points = factor - 1  # Número de puntos a agregar entre cada par de puntos originales
+    # Interpolate points
+    num_intermediate_points = factor - 1  # Number of points to add between each pair of original points
     new_x, new_y = linear_interpolate(x, y, num_intermediate_points + 1)
 
-    # Combinar nuevos puntos
+    # Combine new points
     interpolated_points = np.vstack((new_y, new_x)).T
     interpolated_scanpath.append(interpolated_points.tolist())
 

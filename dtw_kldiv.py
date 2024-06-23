@@ -3,6 +3,7 @@ import torch
 import torch.cuda
 import torch.nn as nn
 from matplotlib import pyplot as plt
+import os
 from numba import jit
 from torch.autograd import Function
 from numba import cuda
@@ -385,8 +386,8 @@ class KLSoftDTW(torch.nn.Module):
 
                 KL_map_gtd = map_gtd / (
                         torch.sum(map_gtd) + epsilon)  # normalization step to make sure that the map_gtd sum to 1
-    
-                
+
+
                 KL = torch.log(KL_map_gtd / (KL_map_pred + epsilon) + epsilon)
                 KL = KL_map_gtd * KL
 

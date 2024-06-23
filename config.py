@@ -22,18 +22,18 @@ generator_name_video = '5035'
 # Indicates if the program used for generate scanpaths shows the saliency maps in the output video
 overlay_saliency = False
 # Indicates the number of the last prediction frames that should be shown in the output video
-g_history_length = 10 
+g_history_length = 10
 
 ### Type of scanpath generator to use ###
 # ('random', 'max_saliency', 'percentile_saliency', 'probabilistic_saliency' or 'inhibition_saliency')
-scanpath_generator_type = 'random'
+scanpath_generator_type = 'max_saliency'
 
 # Percentile for random scanpath generation type 'percentile_saliency' (e.g., 50 for median)
 percentile = 70
 
 # Importance factor for probabilistic scanpath generation type 'probabilistic_saliency' and 'inhibition_saliency'
 # (e.g., 1.0 for no adjustment)
-probabilistic_importance = 8.0
+probabilistic_importance = 2.0
 
 # Parameters for scanpath generation with inhibition type 'inhibition_saliency'
 inhibition_radius = 20  # Radius around selected points where saliency will be reduced
@@ -44,8 +44,7 @@ equator_bias = True # if True decrease the saliency of Y far from the equator
 bias_strength = 1.0 # Strength of the equatorial bias to increase the saliency of points near the horizontal center
 
 fixation_distance = True   # if True decrease the saliency of points based on their distance from a current fixation point
-fixation_angle = 5
-
+fixation_angle = 45 # maximum angle between two fixed points
 
 #####################################################################################
 # Scanpath visualizer parameters
@@ -54,9 +53,9 @@ fixation_angle = 5
 v_type = "thumbnail"
 
 # Indicates the file where the visualizer will load the scanpaths from
-v_name = "0002"
+v_name = "5035"
 v_parameters = '_ground_truth'
-
+# Indicates if the saliency maps should be used for the visualizer
 overlay_saliency = False
 
 
@@ -64,6 +63,7 @@ overlay_saliency = False
 i_scanpath = 1
 # Indicates the number of the last prediction frames that should be shown in the output video
 v_history_length = 5
+# Indicates the number of viewports that should be shown in the output video
 plot_n_viewports = 3
 
 
@@ -100,15 +100,15 @@ videos_test_file = 'data/test_split_VRET.txt'
 # Batch size
 batch_size = 1
 # Nº of epochs
-epochs = 50
+epochs = 1000
 # Learning rate
-lr = 0.0001
+lr = 0.001
 # Hidden dimension of the model (SST-Sal uses hidden_dim=36)
 hidden_dim = 36
 # Percentage of training data intended to validation
 validation_split = 0.2
 # Name of the model ( for saving pruposes)
-model_name = 'prueba2-20epochs'
+model_name = '0002'
 # Path to the folder where the checkpoints will be saved
 ckp_dir = 'checkpoints'
 # Path to the folder where the model will be saved
@@ -120,15 +120,11 @@ runs_data_dir = 'runs'
 # Inference parameters
 #####################################################################################
 # Path to the folder containing the model to be used for inference
-# inference_model = 'models/SST_Sal.pth' # with optical flow
-name_inference_frames_folder = '0002'
-
-inference_model = 'models/'+name_inference_frames_folder+'.pth' # without optical flow
+name_inference_frames_folder = '1004'
+inference_model = 'models/'+name_inference_frames_folder+'.pth'
 # Path to the folder where the inference results will be saved
 results_dir = 'results'
 # Path to the folder containing the videos to be used for inference
-videos_folder = 'data/videos'
-# Indicates if the model used for inference is trained with or without optical flow
-of_available = False
-
+videos_folder = 'data/'
+# Number of scanpaths to be generated
 n_scanpaths_inference = 10

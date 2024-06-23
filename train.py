@@ -26,19 +26,31 @@ torch.autograd.set_detect_anomaly(True)
 import config
 from termcolor import colored
 
-def print_gradient_summary(model, writer , epoch):
+def print_gradient_summary(model, writer, epoch):
+    """
+    Print a summary of the gradients of a model's parameters and log histograms to TensorBoard.
+
+    This function iterates through the model's parameters, checks the gradient norms, 
+    and prints them with color coding based on their magnitudes and parameter types.
+    It also logs histograms of the parameters to TensorBoard every 10 epochs.
+
+    Parameters:
+    model (torch.nn.Module): The model whose gradients are being summarized.
+    writer (torch.utils.tensorboard.SummaryWriter): The TensorBoard writer for logging histograms.
+    epoch (int): The current epoch number for logging purposes.
+    """
     for name, param in model.named_parameters():
         if param.grad is not None:
             grad_norm = param.grad.norm().item()
 
             if grad_norm > 10:
-                message_color_2 = colored(f"{grad_norm:.5f}", 'red') # Gradientes demasiado grandes
+                message_color_2 = colored(f"{grad_norm:.5f}", 'red')  # Gradients too large
             elif grad_norm < 1e-5:
-                message_color_2 = colored(f"{grad_norm:.5f}", 'red') # Gradientes demasiado pequeños
+                message_color_2 = colored(f"{grad_norm:.5f}", 'red')  # Gradients too small
             else:
-                message_color_2 = colored(f"{grad_norm:.5f}", 'green') # Gradientes normales
+                message_color_2 = colored(f"{grad_norm:.5f}", 'green')  # Normal gradients
 
-            # Determinar el color basado en el tipo de parámetro y su magnitud
+            # Determine color based on the type of parameter and its magnitude
             if 'encoder' in name:
                 message_color_1 = colored("encoder - ", 'cyan')
             elif 'decoder' in name:
@@ -49,102 +61,13 @@ def print_gradient_summary(model, writer , epoch):
                 message_color_1 = message_color_1 + colored("bias: ", 'yellow')
             print(message_color_1, message_color_2)
         else:
-            print(colored(f"Gradiente para {name}: None encontrado", 'grey'))
+            print(colored(f"Gradient for {name}: None found", 'grey'))
+
+        # Log parameter histograms to TensorBoard every 10 epochs
         if epoch % 10 == 0:
             writer.add_histogram(f'params/{name}', param, epoch)
 
-def train_SST_SAL_original(train_data, val_data, model, device, criterion, lr = 0.001, EPOCHS=10, model_name='Model'):
-
-    writer = SummaryWriter(os.path.join(config.runs_data_dir, model_name +'_' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + '/'))
-    path = os.path.join(config.models_dir, model_name + '_' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
-    ckp_path = os.path.join(config.ckp_dir, model_name + '_' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")) 
-    os.makedirs(path, exist_ok=True)
-    os.makedirs(ckp_path, exist_ok=True)
-
-    optimizer = torch.optim.SGD(model.parameters(), lr=lr) 
-
-    model.train()
-
-    model.to(device)
-    criterion.cuda(device)
-    print("Training model ...")
-    epoch_times = []
-    
-    # Training loop
-    for epoch in range(EPOCHS):
-        start_time = time.time()
-        avg_loss_train = 0.
-        avg_loss_val = 0.
-        counter_train = 0
-        counter_val = 0
-
-        for x, y in train_data:
-            model.zero_grad()
-            pred = model(x.to(device))
-            loss = criterion(pred[:, :, 0, :, :], y[:, :, 0, :, :].to(device))
-            loss.sum().backward()
-            optimizer.step()
-            avg_loss_train += loss.sum().item()
-            counter_train += 1
-            if counter_train % 20 == 0:
-                print("Epoch {}......Step: {}/{}....... Average Loss for Epoch: {}".format(epoch, counter_train, len(train_data),
-                                                                                        avg_loss_train / counter_train))
-
-        current_time = time.time()
-        print("Epoch {}/{} , Total Spherical KLDiv Loss: {}".format(epoch, EPOCHS, avg_loss_train / counter_train))
-        print("Total Time: {} seconds".format(str(current_time - start_time)))
-        epoch_times.append(current_time - start_time)
-
-        with torch.no_grad(): # Evaluate on validation set
-            for x, y in val_data:
-                counter_val += 1
-                pred = model(x.to(device))
-                loss = criterion(pred[:, :, 0, :, :], y[:, :, 0, :, :].to(device))
-                avg_loss_val += loss.sum().item()
-
-        writer.add_scalars('Loss', {'train': avg_loss_train / counter_train, 'val': avg_loss_val / counter_val}, epoch)
-
-        if epoch % 50 == 0: # Save checkpoint and model every 50 epochs
-            torch.save(model, path + '/'+ str(epoch)+ '_model.pth')
-            ckp_path = os.path.join(config.ckp_dir,model_name + '_' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")) 
-            os.mkdir(ckp_path)
-            torch.save({
-            'epoch': epoch,
-            'model_state_dict': model.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
-            'loss': loss,
-            }, ckp_path + '/model.pt')
-
-    torch.save(model, path + '/model.pth') # Save final model and checkpoints
-    torch.save({
-            'epoch': epoch,
-            'model_state_dict': model.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
-            'loss': loss,
-            }, ckp_path + '/model.pt')
-    return model
-
-def get_gradients_hook(writer, layer_name, param_name, epoch):
-    def hook(grad):
-        writer.add_histogram(f"{layer_name}/{param_name}_gradients", grad, epoch)
-    return hook
-
-def get_activations_hook(writer, layer_name, epoch):
-    def hook(module, input, output):
-        if isinstance(output, tuple):
-            tensor_output = output[0]  # Accede solo al tensor
-            writer.add_histogram(f"{layer_name}_activations", tensor_output, epoch)
-        else:
-            writer.add_histogram(f"{layer_name}_activations", output, epoch) # Manejo del caso en el que la salida no sea una tupla
-    return hook
-
-def register_activation_hooks(model, writer, epoch):
-    for name, module in model.named_modules():
-        if name in ['encoder', 'decoder']:  # Cambia esto según los nombres específicos que quieras
-            module.register_forward_hook(get_activations_hook(writer, name, epoch))
-
 def train_scanpath_video_predictor(train_data, val_data, model, device, criterion, lr = 0.001, EPOCHS=10, model_name='Model'):
-    # register_activation_hooks(model, writer, epoch=0)
     writer = SummaryWriter(os.path.join(config.runs_data_dir, model_name +'_' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + '/'))
     path = os.path.join(config.models_dir, model_name + '_' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
     ckp_path = os.path.join(config.ckp_dir, model_name + '_' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")) 
@@ -208,34 +131,25 @@ def train_scanpath_video_predictor(train_data, val_data, model, device, criterio
                     else:
                         out_squeezed=((out - torch.min(out)) / (torch.max(out) - torch.min(out))).squeeze() # Normalize map and squeeze
                     tSPM=out_squeezed.cpu().detach().numpy()
-                    point = sg.generate_image_saliency_matrix_scanpath(tSPM, 1)
-                    gaussian_map= gmg.gaussian_map(out_squeezed.shape[0], out_squeezed.shape[1], (point[0],point[1]))
+                    scaled_tSPM = ((tSPM + 1) / 2) * 255
+                    point = sg.generate_image_probabilistic_saliency_scanpath(scaled_tSPM, 2)
+                    gaussian_map= gmg.gaussian_map(out_squeezed.shape[0], out_squeezed.shape[1], (point[1],point[0]))
                     gaussian_map = gaussian_map.astype(np.float32)
                     gaussian_map = torch.FloatTensor(gaussian_map).unsqueeze(0).unsqueeze(0)
             pred = torch.stack(outputs, dim=1)
             pred.squeeze(0)
             y.squeeze(0)
 
-            # total_loss_DTW = 0
-            # for i in range(0, pred.shape[1]-1): # [b_size(1), len, H, W]
-            #     loss = criterion(pred[:, i, :, :, :], y[:, i+1, :, :, :].to(device))
-            #     total_loss_DTW = total_loss_DTW + loss
-            # total_loss_DTW = total_loss_DTW / pred.shape[1]
-            total_loss_DTW = criterion(pred[:, -1, :, :, :], y[:, -1, :, :, :].to(device))
+            total_loss_DTW = 0
+            for i in range(0, pred.shape[1]-1): # [b_size(1), len, H, W]
+                loss = criterion(pred[:, i, :, :, :], y[:, i+1, :, :, :].to(device))
+                total_loss_DTW = total_loss_DTW + loss
+            total_loss_DTW = total_loss_DTW / pred.shape[1]
+            # total_loss_DTW = criterion(pred[:, -1, :, :, :], y[:, -1, :, :, :].to(device))
 
             total_loss_DTW.backward()
-            print_gradient_summary(model,  writer, epoch)
+            # print_gradient_summary(model,  writer, epoch)
             optimizer.step()
-            # for name, param in model.named_parameters():
-            #     if param.grad is not None:
-            #         print(f"Gradiente para {name}: norma {param.grad.norm()}")
-            #         if param.grad.norm() > 500:
-            #             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=500.0) # Aplicar clipping de gradiente ya que estos tienden a explotar
-            #     else:
-            #         print(f"Gradiente para {name}: None encontrado")
-            #     # layer_name, param_name = name.split('.')
-            #     # param.register_hook(get_gradients_hook(writer, layer_name, param_name, epoch))
-            #     writer.add_histogram(f'params/{name}', param, epoch)
 
             # avg_loss_train += loss.sum().item()
             avg_loss_train += total_loss_DTW
@@ -275,20 +189,21 @@ def train_scanpath_video_predictor(train_data, val_data, model, device, criterio
                         else:
                             out_squeezed=((out - torch.min(out)) / (torch.max(out) - torch.min(out))).squeeze() # Normalize map and squeeze
                         tSPM=out_squeezed.cpu().detach().numpy()
-                        point = sg.generate_image_saliency_matrix_scanpath(tSPM, 1)
-                        gaussian_map= gmg.gaussian_map(out_squeezed.shape[0], out_squeezed.shape[1], (point[0],point[1]))
+                        scaled_tSPM = ((tSPM + 1) / 2) * 255
+                        point = sg.generate_image_probabilistic_saliency_scanpath(scaled_tSPM, 2)
+                        gaussian_map= gmg.gaussian_map(out_squeezed.shape[0], out_squeezed.shape[1], (point[1],point[0]))
                         gaussian_map = gaussian_map.astype(np.float32)
                         gaussian_map = torch.FloatTensor(gaussian_map).unsqueeze(0).unsqueeze(0)
                 pred = torch.stack(outputs, dim=1)
                 pred.squeeze(0)
                 y.squeeze(0)
 
-                # total_loss_DTW = 0
-                # for i in range(0, pred.shape[1]-1): # [b_size(1), len, H, W]
-                #     loss = criterion(pred[:, i, :, :, :], y[:, i+1, :, :, :].to(device))
-                #     total_loss_DTW = total_loss_DTW + loss
-                # total_loss_DTW = total_loss_DTW / pred.shape[1]
-                total_loss_DTW = criterion(pred[:, -1, :, :, :], y[:, -1, :, :, :].to(device))
+                total_loss_DTW = 0
+                for i in range(0, pred.shape[1]-1): # [b_size(1), len, H, W]
+                    loss = criterion(pred[:, i, :, :, :], y[:, i+1, :, :, :].to(device))
+                    total_loss_DTW = total_loss_DTW + loss
+                total_loss_DTW = total_loss_DTW / pred.shape[1]
+                # total_loss_DTW = criterion(pred[:, -1, :, :, :], y[:, -1, :, :, :].to(device))
                 avg_loss_val += total_loss_DTW
                 counter_val += 1
 
@@ -320,24 +235,19 @@ if __name__ == '__main__':
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print("The model will be running on", device, "device")
 
-    # Train SST-Sal
     model = models.SST_Sal_scanpath(hidden_dim=config.hidden_dim)
-    # criterion = KLWeightedLossSequence()
     loss_KLDTW = KLSoftDTW(use_cuda=torch.cuda.is_available())
 
 
     video_names_train = read_txt_file(config.videos_train_file)
 
-    # train_video360_dataset = RGB_and_OF(config.frames_dir, config.optical_flow_dir, config.gt_dir, video_names_train, config.sequence_length, split='train', resolution=config.resolution)
-    # val_video360_dataset = RGB_and_OF(config.frames_dir, config.optical_flow_dir, config.gt_dir, video_names_train, config.sequence_length, split='validation', resolution=config.resolution)
-    train_video360_dataset = RGB_with_GM(config.frames_dir, config.gt_dir, video_names_train, config.sequence_length, skip=20, split='train', resolution=config.resolution)
-    val_video360_dataset = RGB_with_GM(config.frames_dir, config.gt_dir, video_names_train, config.sequence_length, skip=20, split='validation', resolution=config.resolution)
+    train_video360_dataset = RGB_with_GM(config.frames_dir, config.gt_dir, video_names_train, config.sequence_length, skip=0, split='train', resolution=config.resolution)
+    val_video360_dataset = RGB_with_GM(config.frames_dir, config.gt_dir, video_names_train, config.sequence_length, skip=0, split='validation', resolution=config.resolution)
 
-    train_data = DataLoader(train_video360_dataset, batch_size=config.batch_size, num_workers=6, shuffle=False) # TODO: cambiar shuffle en prueba final
-    val_data = DataLoader(val_video360_dataset, batch_size=config.batch_size, num_workers=6, shuffle=False)
+    train_data = DataLoader(train_video360_dataset, batch_size=config.batch_size, num_workers=6, shuffle=True)
+    val_data = DataLoader(val_video360_dataset, batch_size=config.batch_size, num_workers=6, shuffle=True)
 
-    # print(model)
-    # model = train_SST_SAL_original(train_data, val_data, model, device, criterion, lr=config.lr, EPOCHS=config.epochs, model_name=config.model_name)
+    print(model)
     model = train_scanpath_video_predictor(train_data, val_data, model, device, loss_KLDTW, lr=config.lr, EPOCHS=config.epochs, model_name=config.model_name)
 
     print("Training finished")

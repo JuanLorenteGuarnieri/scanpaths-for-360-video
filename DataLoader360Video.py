@@ -28,7 +28,7 @@ class RGB_and_OF(Dataset):
             video_names = video_names[:sp]
         elif split == "train":
             video_names = video_names[sp:]
-        
+
         for name in video_names:
             video_frames_names = os.listdir(os.path.join(self.path_frames, name))
             video_frames_names = sorted(video_frames_names, key=lambda x: int((x.split(".")[0]).split("_")[1]))
@@ -40,10 +40,10 @@ class RGB_and_OF(Dataset):
 
             # Split the videos in sequences of equal lenght
             initial_frame = self.frames_per_data + skip
-            
+
             if inference:
                 frames_per_data = self.frames_per_data - 4
-                
+
             for end in range(initial_frame, len(video_frames_names), frames_per_data):
                 # Check if exist the ground truth saliency map for all the frames in the sequence
                 valid_sequence = True
@@ -58,20 +58,19 @@ class RGB_and_OF(Dataset):
                             valid_sequence = False
                             print("Saliency map not found for frame: " + frame)
                             break
-                
+
                 if valid_sequence: self.sequences.append(video_frames_names[sts:end])
-            
+
                 sts = end
                 if inference: sts = sts - 4 # To overlap sequences while inference for smooth predictions (4 frames) 
 
-    
     def __len__(self):
         return len(self.sequences)
 
     def __getitem__(self, idx):
         if torch.is_tensor(idx):
             idx = idx.tolist()
-        
+
         frame_img = []
         label = []
         flow_map = []
@@ -102,7 +101,6 @@ class RGB_and_OF(Dataset):
             if not self.path_sal_maps == None:
                 sal_map_path = os.path.join(self.path_sal_maps, frame_name.split("_")[0], frame_name.split("_")[1])
                 assert os.path.exists(sal_map_path), 'Saliency map has not been found in path: ' + sal_map_path
-                
 
                 saliency_img = cv2.imread(sal_map_path, cv2.IMREAD_GRAYSCALE)
                 # Assert if the saliency map could not be read
@@ -167,7 +165,7 @@ class RGB(Dataset):
             video_names = video_names[:sp]
         elif split == "train":
             video_names = video_names[sp:]
-        
+
         for name in video_names:
             video_frames_names = os.listdir(os.path.join(self.path_frames, name))
             video_frames_names = sorted(video_frames_names, key=lambda x: int((x.split(".")[0]).split("_")[1]))
@@ -180,7 +178,7 @@ class RGB(Dataset):
 
             # Split the videos in sequences of equal lenght
             initial_frame = self.frames_per_data + skip
-            
+
             if inference:
                 frames_per_data = self.frames_per_data - 4
 
@@ -196,11 +194,10 @@ class RGB(Dataset):
                         if not os.path.exists(os.path.join(self.path_sal_maps, frame.split("_")[0], frame.split("_")[1])):
                             valid_sequence = False
                             break
-                
+
                 if valid_sequence: self.sequences.append(video_frames_names[sts:end])
                 sts = end
                 if inference: sts = sts - 4 # To overlap sequences while inference for smooth predictions (4 frames) 
-                    
 
     def __len__(self):
         return len(self.sequences)
@@ -208,7 +205,7 @@ class RGB(Dataset):
     def __getitem__(self, idx):
         if torch.is_tensor(idx):
             idx = idx.tolist()
-        
+
         frame_img = []
         label = []
         frame_names = []
@@ -238,7 +235,6 @@ class RGB(Dataset):
             if not self.path_sal_maps == None:
                 sal_map_path = os.path.join(self.path_sal_maps, frame_name.split("_")[0], frame_name.split("_")[1])
                 assert os.path.exists(sal_map_path), 'Saliency map has not been found in path: ' + sal_map_path
-                
 
                 saliency_img = cv2.imread(sal_map_path, cv2.IMREAD_GRAYSCALE)
                 if saliency_img.shape[1] != self.resolution[1] or saliency_img.shape[0] != self.resolution[0]:  
@@ -256,13 +252,12 @@ class RGB(Dataset):
         else:
             if self.path_sal_maps is None: sample = [torch.cat(frame_img, 0)]
             else: sample = [torch.cat(frame_img, 0), torch.cat(label, 0)]
-            
 
         if self.transform:
             tf = Rotate()
             return tf(sample)
         return sample
-    
+
 class RGB_with_GM(Dataset):
     def __init__(self, path_to_frames,path_to_saliency_maps, video_names, frames_per_data=20, split_percentage=0.2, split='train', resolution = [240, 320], skip=20, load_names=False, transform=False, inference=False):
         self.sequences = []
@@ -282,7 +277,7 @@ class RGB_with_GM(Dataset):
             video_names = video_names[:sp]
         elif split == "train":
             video_names = video_names[sp:]
-        
+
         for name in video_names:
             video_frames_names = os.listdir(os.path.join(self.path_frames, name))
             video_frames_names = sorted(video_frames_names, key=lambda x: int((x.split(".")[0]).split("_")[1]))
@@ -295,7 +290,7 @@ class RGB_with_GM(Dataset):
 
             # Split the videos in sequences of equal lenght
             initial_frame = self.frames_per_data + skip
-            
+
             if inference:
                 frames_per_data = self.frames_per_data - 4
 
@@ -311,11 +306,11 @@ class RGB_with_GM(Dataset):
                         if not os.path.exists(os.path.join(self.path_sal_maps, frame.split("_")[0], frame.split("_")[1])):
                             valid_sequence = False
                             break
-                
+
                 if valid_sequence: self.sequences.append(video_frames_names[sts:end])
                 sts = end
                 if inference: sts = sts - 4 # To overlap sequences while inference for smooth predictions (4 frames) 
-                    
+
 
     def __len__(self):
         return len(self.sequences)
@@ -323,7 +318,7 @@ class RGB_with_GM(Dataset):
     def __getitem__(self, idx):
         if torch.is_tensor(idx):
             idx = idx.tolist()
-        
+
         frame_img = []
         label = []
         frame_names = []
@@ -353,11 +348,10 @@ class RGB_with_GM(Dataset):
             if not self.path_sal_maps == None:
                 sal_map_path = os.path.join(self.path_sal_maps, frame_name.split("_")[0], frame_name.split("_")[1])
                 assert os.path.exists(sal_map_path), 'Saliency map has not been found in path: ' + sal_map_path
-                
 
                 saliency_img = cv2.imread(sal_map_path, cv2.IMREAD_GRAYSCALE)
                 saliency_img = cv2.imread(sal_map_path, cv2.IMREAD_GRAYSCALE)
-                if saliency_img.shape[1] != self.resolution[1] or saliency_img.shape[0] != self.resolution[0]:  
+                if saliency_img.shape[1] != self.resolution[1] or saliency_img.shape[0] != self.resolution[0]:
                     saliency_img = cv2.resize(saliency_img, (self.resolution[1], self.resolution[0]),
                                                 interpolation=cv2.INTER_AREA)
                 saliency_img = saliency_img.astype(np.float32)
@@ -377,7 +371,6 @@ class RGB_with_GM(Dataset):
         else:
             if self.path_sal_maps is None: sample = [torch.cat(frame_img, 0)]
             else: sample = [torch.cat(frame_img, 0), torch.cat(label, 0)]
-            
 
         if self.transform:
             tf = Rotate()
@@ -390,7 +383,7 @@ class Rotate(object):
     """
 
     def __call__(self, sample):
-        
+
         input = sample[0]
         sal_map = sample[1]
 

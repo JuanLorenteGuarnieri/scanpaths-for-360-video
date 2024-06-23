@@ -1,108 +1,87 @@
 import os
-import json
-
-# # Directorio donde se encuentran los archivos .scanpaths
-# directorio = 'output_scanpaths'
-
-# # Diccionario para clasificar los archivos por tipo
-# archivos_por_tipo = {}
-
-# # Recorrer los archivos en el directorio
-# for archivo in os.listdir(directorio):
-#     if archivo.endswith('.scanpaths'):
-#         # Extraer el número, _N10, y el tipo del nombre del archivo
-#         partes = archivo.split('_N10_')
-#         numero, tipo_con_extension = partes[0], partes[1]
-#         tipo = tipo_con_extension.split('.scanpaths')[0]
-        
-#         # Agregar el archivo a la lista correspondiente a su tipo
-#         if tipo not in archivos_por_tipo:
-#             archivos_por_tipo[tipo] = []
-#         archivos_por_tipo[tipo].append(os.path.join(directorio, archivo))
-
-# # Para cada tipo, leer los archivos, combinar los scanpaths y guardarlos
-# for tipo, archivos in archivos_por_tipo.items():
-#     scanpaths_combinados = []
-
-#     for archivo in archivos:
-#         with open(archivo, 'r') as f:
-#             # Asumiendo que los scanpaths están almacenados en formato JSON
-#             scanpaths = json.load(f)
-#             scanpaths_combinados.extend(scanpaths)
-    
-#     # Guardar los scanpaths combinados en un nuevo archivo
-#     nombre_archivo_resultado = os.path.join(directorio, f"{tipo}.scanpaths")
-#     with open(nombre_archivo_resultado, 'w') as f:
-#         json.dump(scanpaths_combinados, f)
-
-# print("Proceso completado.")
-
 import csv
-import os
 import json
 
-# Función para procesar un único archivo y obtener los scanpaths
-def procesar_archivo(ruta_archivo):
-    datos_agrupados = []
-    grupo_actual = []
-    frame_anterior = -1
-    ultimo_frame_guardado = -8
-    ajuste_realizado = False
-    
-    with open(ruta_archivo, 'r') as archivo:
-        lector = csv.DictReader(archivo)
-        for fila in lector:
-            frame_actual = int(fila['frame'])
-            
-            if frame_actual != frame_anterior:
-                if frame_anterior > 0 and frame_actual < frame_anterior:
-                    datos_agrupados.append(grupo_actual)
-                    grupo_actual = []
-                    frame_anterior = -1
-                    ultimo_frame_guardado = -8
-                    ajuste_realizado = False
-                
-                diferencia = frame_actual - ultimo_frame_guardado
-                
-                if diferencia >= 8 or (diferencia > 0 and not ajuste_realizado):
-                    grupo_actual.append([float(fila['v']), float(fila['u'])])
-                    if not ajuste_realizado and diferencia > 0 and diferencia < 8:
-                        ultimo_frame_guardado = frame_actual
-                        ajuste_realizado = True
-                    elif ajuste_realizado:
-                        ultimo_frame_guardado += 8
+def process_file(file_path):
+    """
+    Processes a single CSV file to extract and group scanpaths based on frame differences.
+
+    This function reads a CSV file containing gaze data, where each row represents a gaze point
+    with associated frame information. The function groups gaze points into scanpaths
+    based on the difference between consecutive frames, and applies specific rules to adjust 
+    the grouping to ensure consistency.
+
+    Parameters:
+    file_path (str): The path to the CSV file to be processed.
+
+    Returns:
+    list: A list of scanpath groups, where each group contains up to 10 scanpaths. 
+          Each scanpath is represented as a list of gaze points, with each point being a 
+          list of two float values corresponding to the 'v' and 'u' coordinates.
+    """
+    grouped_data = []
+    current_group = []
+    previous_frame = -1
+    last_saved_frame = -8
+    adjustment_made = False
+
+    with open(file_path, 'r') as file:
+        reader = csv.DictReader(file)
+        for row in reader:
+            current_frame = int(row['frame'])
+
+            # Check if the current frame is different from the previous frame
+            if current_frame != previous_frame:
+                if previous_frame > 0 and current_frame < previous_frame:
+                    grouped_data.append(current_group)
+                    current_group = []
+                    previous_frame = -1
+                    last_saved_frame = -8
+                    adjustment_made = False
+
+                difference = current_frame - last_saved_frame
+
+                # Check if the difference is greater than or equal to 8 or if an adjustment is needed
+                if difference >= 8 or (difference > 0 and not adjustment_made):
+                    current_group.append([float(row['v']), float(row['u'])])
+                    if not adjustment_made and difference > 0 and difference < 8:
+                        last_saved_frame = current_frame
+                        adjustment_made = True
+                    elif adjustment_made:
+                        last_saved_frame += 8
                     else:
-                        ultimo_frame_guardado = frame_actual
-            
-            frame_anterior = frame_actual
-        
-        if grupo_actual:
-            datos_agrupados.append(grupo_actual)
-    
-    return datos_agrupados[:10]  # Retorna solo los primeros 10 grupos
+                        last_saved_frame = current_frame
 
-# Directorio de los archivos
-directorio = '' # CAMBIAR POR DIRECTORIO DONDE SE GUARDAN LOS .csv DEL DATASET D-SAV360
+            previous_frame = current_frame
 
-# Números de los archivos específicos a procesar
-numeros_especificos = ['0002', '0011', '1005', '1016', '2006', '2017', '1004', '5010', '5007', '5035']
+        # Append the last group if it's not empty
+        if current_group:
+            grouped_data.append(current_group)
 
-# Recolecta 10 scanpaths de cada archivo
-scanpaths_totales = []
-# Procesa solo los archivos especificados
-for numero in numeros_especificos:
-    nombre_archivo = f'gaze_video_{numero}.csv'
-    ruta_completa = os.path.join(directorio, nombre_archivo)
-    if os.path.exists(ruta_completa):
-        scanpaths = procesar_archivo(ruta_completa)
-        scanpaths_totales.extend(scanpaths)
+    return grouped_data[:10]  # Return only the first 10 groups
+
+# Directory of the files
+directory = ''  # CHANGE TO THE DIRECTORY WHERE THE .csv FILES OF THE D-SAV360 DATASET ARE STORED
+
+# Specific file numbers to process
+specific_numbers = ['0002', '0011', '1005', '1016', '2006', '2017', '1004', '5010', '5007', '5035']
+
+# Collect 10 scanpaths from each file
+total_scanpaths = []
+
+# Process only the specified files
+for number in specific_numbers:
+    file_name = f'gaze_video_{number}.csv'
+    full_path = os.path.join(directory, file_name)
+    if os.path.exists(full_path):
+        scanpaths = process_file(full_path)
+        total_scanpaths.extend(scanpaths)
     else:
-        print(f"El archivo {nombre_archivo} no existe. Revisar path de los achivos .csv del dataset D-SAV360.")
+        print(f"The file {file_name} does not exist. Please check the path of the .csv files of the D-SAV360 dataset.")
 
-# Guarda los scanpaths totales en un archivo .scanpaths
-ruta_guardado = 'output_scanpaths/ground_truth.scanpaths'
-with open(ruta_guardado, 'w') as archivo_resultado:
-    json.dump(scanpaths_totales, archivo_resultado)
+# Save the total scanpaths to a .scanpaths file
+save_path = 'output_scanpaths/ground_truth.scanpaths'
+with open(save_path, 'w') as result_file:
+    json.dump(total_scanpaths, result_file)
 
-print("Proceso completado.")
-
+print("Process completed.")

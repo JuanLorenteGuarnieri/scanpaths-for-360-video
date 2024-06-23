@@ -34,7 +34,7 @@ class SpherConvLSTM_DecoderCell(nn.Module):
 
     def init_hidden(self, b, shape):
         h, c = self.lstm.init_hidden(b, shape)
-        return [h, c]  
+        return [h, c]
 
 class SpherConvLSTMCell(nn.Module):
 
@@ -43,7 +43,7 @@ class SpherConvLSTMCell(nn.Module):
         Initialize Spherical ConvLSTM cell.
         ----------
         input_dim: Number of channels of input tensor.
-        hidden_dim: Dimension of the hidden states.  
+        hidden_dim: Dimension of the hidden states.
         bias: Whether or not to add the bias.
         """
 

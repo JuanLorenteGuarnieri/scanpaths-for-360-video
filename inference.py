@@ -11,7 +11,7 @@ import scanpath_generator as sg
 import gaussian_map_generator as gmg
 import json
 
-from utils import save_video 
+from utils import save_video
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 def eval(test_data, model, device, result_imp_path, coordconv_matrix):
@@ -32,11 +32,11 @@ def eval(test_data, model, device, result_imp_path, coordconv_matrix):
                 gaussian_map= gmg.gaussian_map(m, n, (0.5,0.5))
                 gaussian_map = gaussian_map.astype(np.float32)
                 gaussian_map = torch.FloatTensor(gaussian_map).unsqueeze(0).unsqueeze(0)
-                
+
                 frame_del_video = x[:, 0, :, :, :]
                 frame_with_coords = torch.cat((frame_del_video.to(device), coordconv_matrix.to(device), gaussian_map.to(device)), dim=1)
                 state_e, state_d = model.init(frame_with_coords)
-                
+
                 for t in range(x.shape[1]):  # Loop over time dimension
                     frame_del_video = x[:, t, :, :, :]
 
@@ -44,15 +44,16 @@ def eval(test_data, model, device, result_imp_path, coordconv_matrix):
                     out, state_e, state_d = model(frame_with_coords, state_e, state_d)
                     out_squeezed = out.squeeze()
                     tSPM = out_squeezed.cpu().detach().numpy()
-                    point = sg.generate_image_probabilistic_saliency_scanpath(tSPM, 8)
+                    scaled_tSPM = ((tSPM + 1) / 2) * 255
+                    point = sg.generate_image_probabilistic_saliency_scanpath(scaled_tSPM, 2)
                     gaussian_map = gmg.gaussian_map(out_squeezed.shape[0], out_squeezed.shape[1], (point[1],point[0]))
                     gaussian_map = torch.FloatTensor(gaussian_map.astype(np.float32)).unsqueeze(0).unsqueeze(0).to(device)
                     tSPMs.append(out)
                     scanpath.append(point)
                     outputs.append(gaussian_map)
-                    
+
                 scanpaths.append(scanpath)
-            
+
             outputs = torch.stack(outputs, dim=1)  # Stack along time dimension
             tSPMs = torch.stack(tSPMs, dim=1)  # Stack along time dimension
 
@@ -64,12 +65,12 @@ def eval(test_data, model, device, result_imp_path, coordconv_matrix):
             # os.makedirs(gauss_map_folder, exist_ok=True)
             # tSPMs_folder = os.path.join(result_imp_path, names[0][0].split('_')[0],"tSPM")
             # os.makedirs(tSPMs_folder, exist_ok=True)
-            
+
             # Guardar scanpath en un archivo
             scanpath_path = os.path.join(scanpath_folder,names[0][0].split('_')[0]+".scanpaths")
             with open(scanpath_path, 'w') as file:
                 json.dump(scanpaths, file)
-            
+
 
             # for bs in range(batch_size):
             #     for iFrame in range(4, Nframes):
@@ -99,14 +100,14 @@ if __name__ == "__main__":
 
     # Load the model
     model =  torch.load(config.inference_model, map_location=device)
-    
+
 
     # Load the data. Use the appropiate data loader depending on the expected input data
     # test_video360_dataset = RGB_with_GM(inference_frames_folder, None, video_test_names, config.sequence_length, split='test', load_names=True, skip=0, resolution=config.resolution)
     test_video360_dataset = RGB(inference_frames_folder, None, video_test_names, config.sequence_length, split='test', load_names=True, skip=0, resolution=config.resolution)
 
     test_data = DataLoader(test_video360_dataset, batch_size=config.batch_size, shuffle=False)
-    
+
     # Prepare the CoordConv matrix similar to the training phase
     images, labels = next(iter(test_data))
     m, n = images.size()[3:5]  # Obtener las dimensiones espaciales: altura (m) y anchura (n)

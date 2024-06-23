@@ -30,17 +30,17 @@ def analyzer():
 
     dtw_scores, det_scores, rec_scores, lev_scores, tde_scores, eye_scores, euc_scores, frech_scores = [], [], [], [], [], [], [], []
 
-    # Inicializamos una lista vacía para almacenar los datos finales
-    datos_agrupados = []
+    # Initialize an empty list to store the final data
+    data_group = []
 
     with open("./output_scanpaths/ground_truth.scanpaths", 'r') as file:
-        datos_agrupados = json.load(file)
-        
-    # Ahora 'datos_agrupados' contiene los datos en el formato deseado
-    datos_agrupados_scaled = [[[int(x * 100), int(y * 100)] for x, y in scanpath] for scanpath in datos_agrupados]
-    # print(len(datos_agrupados))
-    
-    for sp1 in tqdm(datos_agrupados_scaled , desc="Procesando lista 1"):
+        data_group = json.load(file)
+
+    # Now 'data_group' contains the data in the desired format
+    data_group_scaled = [[[int(x * 100), int(y * 100)] for x, y in scanpath] for scanpath in data_group]
+    # print(len(data_group))
+
+    for sp1 in tqdm(data_group_scaled , desc="Procesando lista 1"):
         for sp2 in tqdm(scanpaths_scaled, desc="Comparando con lista 2", leave=False):
             rec_score = [0] * 8
             rec_score[0] = metrics.DTW(sp1, sp2)
@@ -60,7 +60,7 @@ def analyzer():
             eye_scores.append(rec_score[5])
             euc_scores.append(rec_score[6])
             frech_scores.append(rec_score[7])
-    
+
     def calculate_metrics(scores):
         mean = np.mean(scores) if scores else 0
         std = np.std(scores) if scores else 0
@@ -112,13 +112,13 @@ def visualizer():
     # Select the scanpath
     selected_scanpath = scanpaths[i_scanpath]
 
-    if os.path.exists("./data/"+config.v_name + "/original/"):
-        original_video_path = "./data/"+config.v_name + "/original/"
+    if os.path.exists("./data/frames/"+config.v_name):
+        original_video_path = "./data/frames/"+config.v_name
     else:
         original_video_path = None
 
-    if os.path.exists("./data/"+config.v_name + "/saliency/") and config.overlay_saliency:
-        saliency_video_path = "./data/"+config.v_name + "/saliency/"
+    if os.path.exists("./data/saliency_maps/"+config.v_name) and config.overlay_saliency:
+        saliency_video_path = "./data/saliency_maps/"+config.v_name
     else:
         saliency_video_path = None
 
@@ -257,12 +257,12 @@ def generator():
             scanpath_filename = os.path.basename(config.folder_path+config.generator_name_video+"_N"+str(config.n_scanpaths)+"_"+ extension_type) + '.scanpaths'  # Or use .mp4
             scanpath_path = os.path.join("./output_scanpaths/", scanpath_filename)
 
-            # Guardar la lista scanpaths en un archivo
+            # Save the scanpaths list to a file
             with open(scanpath_path, 'w') as file:
                 json.dump(scanpaths, file)
 
             print(f"Scanpaths saved to {scanpath_path}")
-            
+
 if __name__ == "__main__":
     if config.analyze:
         analyzer()
