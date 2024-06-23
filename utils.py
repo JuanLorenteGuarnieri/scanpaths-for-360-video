@@ -582,6 +582,8 @@ def plot_all_viewports(scanpaths, fov_vert_hor, path_to_save, name):
     fov_hor = fov_vert * aspect_ratio
     fov_vert_hor = np.array([fov_vert, fov_hor])
     
+    max_length = min(max_length, len(video_frames))
+    
     for frame_no in range(max_length):
         plt.close('all')  # Close all existing plots to avoid memory issues
         if original_video_path:
@@ -596,6 +598,7 @@ def plot_all_viewports(scanpaths, fov_vert_hor, path_to_save, name):
         ax.set_ylim([image.shape[0], 0])
         
         # Iterate through each scanpath and plot the current point if it exists
+        
         for i, (scanpath, color) in enumerate(zip(scanpaths, colors)):
             if frame_no < len(scanpath):
                 point = scanpath[frame_no]
@@ -642,7 +645,8 @@ def plot_thumbnail(scanpath, path_to_save, name):
     lat_lon = None
     last_point = None
     height_width = [800,800]
-    for frame_no in range(len(scanpath)):
+    max_length = min(len(scanpath),len(video_frames))
+    for frame_no in range(max_length):
         plt.close('all')  # Close all existing plots to avoid memory issues
         image = mpimg.imread(os.path.join(original_video_path, video_frames[frame_no]))
         point = scanpath[frame_no]
@@ -676,3 +680,60 @@ def plot_thumbnail(scanpath, path_to_save, name):
         # Save the figure for the current frame
         fig.savefig(f"{path_to_save}/frame_{str(frame_no).zfill(5)}.png", bbox_inches='tight', pad_inches=0, dpi=160)
         fig.clf()
+        
+def linear_interpolate(x, y, num_points):
+        new_x = []
+        new_y = []
+        for i in range(len(x) - 1):
+            new_x.append(x[i])
+            new_y.append(y[i])
+            for j in range(1, num_points):
+                # Calcular la diferencia mínima considerando la naturaleza circular del eje x
+                delta_x = x[i+1] - x[i]
+                if abs(delta_x) > 0.5:
+                    if delta_x > 0:
+                        delta_x -= 1.0
+                    else:
+                        delta_x += 1.0
+                interpolated_x = x[i] + delta_x * j / num_points
+                # Ajustar interpolated_x para que esté en el rango [0, 1)
+                interpolated_x = interpolated_x % 1.0
+
+                new_x.append(interpolated_x)
+                new_y.append(y[i] + (y[i+1] - y[i]) * j / num_points)
+        new_x.append(x[-1])
+        new_y.append(y[-1])
+        return np.array(new_x), np.array(new_y)
+
+def interpolate_scanpaths(scanpaths, factor=2):
+    interpolated_scanpaths = []
+    for scanpath in scanpaths:
+        points = np.array(scanpath)
+        x = points[:, 1]
+        y = points[:, 0]
+
+        # Interpolar los puntos
+        num_intermediate_points = factor - 1  # Número de puntos a agregar entre cada par de puntos originales
+        new_x, new_y = linear_interpolate(x, y, num_intermediate_points + 1)
+
+        # Combinar nuevos puntos
+        interpolated_points = np.vstack((new_y, new_x)).T
+        interpolated_scanpaths.append(interpolated_points.tolist())
+
+    return interpolated_scanpaths
+
+def interpolate_scanpath(scanpath, factor=2):
+    interpolated_scanpath = []
+    points = np.array(scanpath)
+    x = points[:, 1]
+    y = points[:, 0]
+
+    # Interpolar los puntos
+    num_intermediate_points = factor - 1  # Número de puntos a agregar entre cada par de puntos originales
+    new_x, new_y = linear_interpolate(x, y, num_intermediate_points + 1)
+
+    # Combinar nuevos puntos
+    interpolated_points = np.vstack((new_y, new_x)).T
+    interpolated_scanpath.append(interpolated_points.tolist())
+
+    return interpolated_scanpath

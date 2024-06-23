@@ -46,14 +46,15 @@ def visualize_image_scanpath(input_image_path, generated_scanpaths, prefix="scan
 
     # Setup and create a single subplot
     DPI = 80
-    marker_size = original_image.shape[1] / 50  # Adjusted marker size
-    line_width = original_image.shape[1] / 500  # Adjusted line width
-    fig, axs = plt.subplots(1, 1, figsize=(original_image.shape[1] / DPI, original_image.shape[0] / DPI))
+    marker_size = original_image.shape[1] / 25  # Adjusted marker size
+    line_width = original_image.shape[1] / 250  # Adjusted line width
+    fig, axs = plt.subplots(1, 1, figsize=(original_image.shape[0]*2 / DPI, original_image.shape[0] / DPI))
 
     # Adjust subplot to remove borders and fill the figure
     axs.set_position([0, 0, 1, 1])
 
     # Display the original image in the background
+    original_image=cv2.resize(original_image, (original_image.shape[0]*2,original_image.shape[0]))
     axs.imshow(original_image)
 
     # If an overlay image path is provided, load, resize, and overlay it

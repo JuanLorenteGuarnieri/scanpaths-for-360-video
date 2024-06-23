@@ -82,10 +82,10 @@ def procesar_archivo(ruta_archivo):
     return datos_agrupados[:10]  # Retorna solo los primeros 10 grupos
 
 # Directorio de los archivos
-directorio = 'D:/TFG/datasets/D-SAV360/gaze_data'
+directorio = '' # CAMBIAR POR DIRECTORIO DONDE SE GUARDAN LOS .csv DEL DATASET D-SAV360
 
 # Números de los archivos específicos a procesar
-numeros_especificos = ['0002', '0011', '1005', '1016', '2006', '2017', '4002', '4008', '5007', '5035']
+numeros_especificos = ['0002', '0011', '1005', '1016', '2006', '2017', '1004', '5010', '5007', '5035']
 
 # Recolecta 10 scanpaths de cada archivo
 scanpaths_totales = []
@@ -97,7 +97,7 @@ for numero in numeros_especificos:
         scanpaths = procesar_archivo(ruta_completa)
         scanpaths_totales.extend(scanpaths)
     else:
-        print(f"El archivo {nombre_archivo} no existe.")
+        print(f"El archivo {nombre_archivo} no existe. Revisar path de los achivos .csv del dataset D-SAV360.")
 
 # Guarda los scanpaths totales en un archivo .scanpaths
 ruta_guardado = 'output_scanpaths/ground_truth.scanpaths'

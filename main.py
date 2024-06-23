@@ -30,61 +30,8 @@ def analyzer():
 
     dtw_scores, det_scores, rec_scores, lev_scores, tde_scores, eye_scores, euc_scores, frech_scores = [], [], [], [], [], [], [], []
 
-    # metrics.SIM(saliency_map, saliency_map_gt) # predicted saliency map VS ground truth saliency map
-    # metrics.mannan_distance(sp1,sp2, 100, 100, PR=None, QR=None) # PR y QR son scanpaths random
-
-    # metrics.TDE(sp1, sp2, k=3, distance_mode='Mean')
-    # metrics.eyenalysis(sp1, sp2)
-    # metrics.euclidean_distance(sp1, sp2)
-    # metrics.frechet_distance(sp1, sp2)
-
     # Inicializamos una lista vacía para almacenar los datos finales
     datos_agrupados = []
-    grupo_actual = []
-    frame_anterior = -1  # Inicializa a -1 para permitir el guardado del primer frame 0
-    ultimo_frame_guardado = -8  # Para asegurar que el primer frame (0) sea guardado
-    ajuste_realizado = False  # Indica si ya se realizó un ajuste
-
-    with open('D:/TFG/datasets/D-SAV360/gaze_data/gaze_video_1005.csv', 'r') as archivo:
-        lector = csv.DictReader(archivo)
-        for fila in lector:
-            frame_actual = int(fila['frame'])
-            
-            # Solo procede si el frame actual es diferente al anterior,
-            # para evitar guardar múltiples ocurrencias seguidas del mismo frame
-            if frame_actual != frame_anterior:
-                
-                # Si el frame actual es menor que el frame anterior, indica el inicio de una nueva lista
-                if frame_anterior > 0 and frame_actual < frame_anterior:
-                    datos_agrupados.append(grupo_actual)
-                    grupo_actual = []
-                    frame_anterior = -1  # Inicializa a -1 para permitir el guardado del primer frame 0
-                    ultimo_frame_guardado = -8  # Para asegurar que el primer frame (0) sea guardado
-                    ajuste_realizado = False  # Indica si ya se realizó un ajuste
-                    
-                # Calcula la diferencia desde el último frame guardado
-                diferencia = frame_actual - ultimo_frame_guardado
-                
-                # Verifica si es momento de guardar los datos según la lógica ajustada
-                if diferencia >= 8 or (diferencia > 0 and not ajuste_realizado):
-                    # Añade el par [v, u] al grupo actual
-                    grupo_actual.append([float(fila['v']), float(fila['u'])])
-                    
-                    # Actualiza el último frame guardado y marca el ajuste si es necesario
-                    if not ajuste_realizado and diferencia > 0 and diferencia < 8:
-                        ultimo_frame_guardado = frame_actual  # Ajusta a la nueva base
-                        ajuste_realizado = True  # Marca que ya se realizó un ajuste
-                    elif ajuste_realizado:
-                        ultimo_frame_guardado += 8  # Sigue con el incremento regular de 8 frames
-                    else:
-                        ultimo_frame_guardado = frame_actual  # Para el primer frame guardado
-            
-            # Actualiza el frame anterior para la próxima iteración
-            frame_anterior = frame_actual
-        
-        # Añade el último grupo si no está vacío
-        if grupo_actual:
-            datos_agrupados.append(grupo_actual)
 
     with open("./output_scanpaths/ground_truth.scanpaths", 'r') as file:
         datos_agrupados = json.load(file)
@@ -97,12 +44,12 @@ def analyzer():
         for sp2 in tqdm(scanpaths_scaled, desc="Comparando con lista 2", leave=False):
             rec_score = [0] * 8
             rec_score[0] = metrics.DTW(sp1, sp2)
-            # rec_score[1] = metrics.DET(sp1, sp2, 25)
+            rec_score[1] = metrics.DET(sp1, sp2, 25)
             rec_score[2] = metrics.REC(sp1, sp2, 10)
             rec_score[3] = metrics.levenshtein_distance(np.array(sp1), np.array(sp2), 100, 100)
-            rec_score[4] = metrics.TDE(sp1, sp2, k=3, distance_mode='Mean')
+            rec_score[4] = 0 #metrics.TDE(sp1, sp2, k=3, distance_mode='Mean')
             rec_score[5] = 0 #metrics.eyenalysis(sp1, sp2)
-            rec_score[6] = metrics.euclidean_distance(sp1, sp2)
+            rec_score[6] = 0 #metrics.euclidean_distance(sp1, sp2)
             rec_score[7] = 0 #metrics.frechet_distance(sp1, sp2)
 
             dtw_scores.append(rec_score[0])
@@ -113,17 +60,31 @@ def analyzer():
             eye_scores.append(rec_score[5])
             euc_scores.append(rec_score[6])
             frech_scores.append(rec_score[7])
+    
+    def calculate_metrics(scores):
+        mean = np.mean(scores) if scores else 0
+        std = np.std(scores) if scores else 0
+        mse = np.mean(np.square(scores)) if scores else 0
+        return mean, std, mse
 
-    average_dtw = np.mean(dtw_scores) if dtw_scores else 0
-    average_det = np.mean(det_scores) if det_scores else 0
-    average_rec = np.mean(rec_scores) if rec_scores else 0
-    average_lev = np.mean(lev_scores) if lev_scores else 0
-    average_tde = np.mean(tde_scores) if tde_scores else 0
-    average_eye = np.mean(eye_scores) if eye_scores else 0
-    average_euc = np.mean(euc_scores) if euc_scores else 0
-    average_frech = np.mean(frech_scores) if frech_scores else 0
+    average_dtw, std_dtw, mse_dtw = calculate_metrics(dtw_scores)
+    average_det, std_det, mse_det = calculate_metrics(det_scores)
+    average_rec, std_rec, mse_rec = calculate_metrics(rec_scores)
+    average_lev, std_lev, mse_lev = calculate_metrics(lev_scores)
+    average_tde, std_tde, mse_tde = calculate_metrics(tde_scores)
+    average_eye, std_eye, mse_eye = calculate_metrics(eye_scores)
+    average_euc, std_euc, mse_euc = calculate_metrics(euc_scores)
+    average_frech, std_frech, mse_frech = calculate_metrics(frech_scores)
 
-    print(f"Average DTW: {average_dtw}\n Average DET: {average_det}\n Average REC: {average_rec}\n Average Levenshtein: {average_lev}\n Average TDE: {average_tde}\n Average eyenalysis: {average_eye}\n Average Euclidean: {average_euc}\n Average Frechet: {average_frech}")
+    print(config.a_name + config.a_parameters)
+    print(f"DTW: Mean={average_dtw}, Std={std_dtw}, MSE={mse_dtw}")
+    print(f"DET: Mean={average_det}, Std={std_det}, MSE={mse_det}")
+    print(f"REC: Mean={average_rec}, Std={std_rec}, MSE={mse_rec}")
+    print(f"Levenshtein: Mean={average_lev}, Std={std_lev}, MSE={mse_lev}")
+    print(f"TDE: Mean={average_tde}, Std={std_tde}, MSE={mse_tde}")
+    print(f"eyenalysis: Mean={average_eye}, Std={std_eye}, MSE={mse_eye}")
+    print(f"Euclidean: Mean={average_euc}, Std={std_euc}, MSE={mse_euc}")
+    print(f"Frechet: Mean={average_frech}, Std={std_frech}, MSE={mse_frech}")
 
 def visualizer():
     # Check if the file exists
@@ -138,7 +99,7 @@ def visualizer():
     # Ensure config.i_scanpath is a valid index
     i_scanpath = min(config.i_scanpath-1, len(scanpaths) - 1)
 
-    output_folder = "./output_scanpaths/"+config.v_name + config.v_parameters+"_n"+str(i_scanpath)
+    output_folder = "./output_scanpaths/"+config.v_name + "_" + config.v_type + config.v_parameters+"_n"+str(i_scanpath)
     frames_folder = os.path.join(output_folder, 'frames')  # Subfolder for frames
 
     # If output_folder already exists, delete it and create a new one
@@ -156,7 +117,7 @@ def visualizer():
     else:
         original_video_path = None
 
-    if os.path.exists("./data/"+config.v_name + "/saliency/"):
+    if os.path.exists("./data/"+config.v_name + "/saliency/") and config.overlay_saliency:
         saliency_video_path = "./data/"+config.v_name + "/saliency/"
     else:
         saliency_video_path = None
@@ -166,9 +127,13 @@ def visualizer():
         sv.visualize_video_scanpath(original_video_path, scanpaths, path_to_save=frames_folder, overlay_folder=saliency_video_path, history_length=config.v_history_length, generated=False)
     elif config.v_type == "multi":
         fov_vert_hor = None
-        utils.plot_all_viewports(scanpaths, fov_vert_hor, frames_folder, config.v_name)
+        filtered_scanpaths = scanpaths[:config.plot_n_viewports]
+        interpolated_scanpaths = utils.interpolate_scanpaths(filtered_scanpaths, 2)
+
+        utils.plot_all_viewports(interpolated_scanpaths, fov_vert_hor, frames_folder, config.v_name)
     elif config.v_type == "thumbnail":
-        utils.plot_thumbnail(selected_scanpath, frames_folder, config.v_name)
+        interpolated_scanpath = utils.interpolate_scanpath(selected_scanpath, 2)
+        utils.plot_thumbnail(interpolated_scanpath[0], frames_folder, config.v_name)
 
     # Generate video from the frames
     frame_files = sorted(os.listdir(frames_folder))  # Assuming frames are named in a sortable manner
@@ -180,16 +145,16 @@ def visualizer():
 
         # Extract folder name for the video file name
         if config.v_type == "preview":
-            video_name = config.v_name + config.v_parameters+"_n"+str(i_scanpath) + '_preview.avi'
+            video_name = config.v_name + '_preview' + config.v_parameters+"_n"+str(i_scanpath) + '.avi'
         elif config.v_type == "multi":
-            video_name = config.v_name + config.v_parameters+'_multi.avi'
+            video_name = config.v_name + '_multi' + config.v_parameters+'.avi'
         elif config.v_type == "thumbnail":
-            video_name = config.v_name + config.v_parameters+"_n"+str(i_scanpath) + '_thumbnail.avi'
+            video_name = config.v_name + '_thumbnail' + config.v_parameters+"_n"+str(i_scanpath) + '.avi'
         video_path = os.path.join(output_folder, video_name)
 
         # Define the codec and create VideoWriter object
         fourcc = cv2.VideoWriter_fourcc(*'XVID')  # Adjust codec as needed
-        out = cv2.VideoWriter(video_path, fourcc, 20.0, (width, height))
+        out = cv2.VideoWriter(video_path, fourcc, 6.6666, (width, height))
 
         for frame_file in frame_files:
             frame_path = os.path.join(frames_folder, frame_file)
@@ -201,9 +166,9 @@ def visualizer():
     print(f"Scanpath visualization complete")
 
 def generator():
-    saliency_map_folder = os.path.join(config.folder_path, 'saliency')
-    original_folder = os.path.join(config.folder_path, 'original')
-    output_folder = os.path.join(config.folder_path, 'output')
+    saliency_map_folder = os.path.join(config.folder_path, 'saliency_maps', config.generator_name_video)
+    original_folder = os.path.join(config.folder_path, 'frames', config.generator_name_video)
+    output_folder = os.path.join(config.folder_path, 'output', config.generator_name_video)
     frames_folder = os.path.join(output_folder, 'frames')  # Subfolder for frames
 
     # If output_folder already exists, delete it and create a new one
@@ -258,7 +223,7 @@ def generator():
                         extension_type = extension_type + '_FixAngle' + str(config.fixation_angle)
 
                 # Extract folder name for the video file name
-                video_name = os.path.basename(config.folder_path+'_'+ extension_type) + '.avi'  # Or use .mp4
+                video_name = os.path.basename(config.folder_path+config.generator_name_video+'_'+ extension_type) + '.avi'  # Or use .mp4
                 video_path = os.path.join(output_folder, video_name)
 
                 # Define the codec and create VideoWriter object
@@ -289,7 +254,7 @@ def generator():
                     extension_type = extension_type + '_FixAngle' + str(config.fixation_angle)
 
             # Extract folder name for the video file name
-            scanpath_filename = os.path.basename(config.folder_path+"_N"+str(config.n_scanpaths)+"_"+ extension_type) + '.scanpaths'  # Or use .mp4
+            scanpath_filename = os.path.basename(config.folder_path+config.generator_name_video+"_N"+str(config.n_scanpaths)+"_"+ extension_type) + '.scanpaths'  # Or use .mp4
             scanpath_path = os.path.join("./output_scanpaths/", scanpath_filename)
 
             # Guardar la lista scanpaths en un archivo
@@ -299,21 +264,6 @@ def generator():
             print(f"Scanpaths saved to {scanpath_path}")
             
 if __name__ == "__main__":
-    
-    # Ejemplo de uso del generador del mapa gaussiano
-    # altura = 200  # Altura de la imagen
-    # anchura = 400  # Anchura de la imagen
-    # punto = (0.5, 0.2)  # Centro del círculo (en coordenadas normalizadas)
-    # radio = 50  # Radio del círculo
-
-    # # Generar la imagen
-    # imagen = gmg.gaussian_map(altura, anchura, punto, radio)
-    
-    # import matplotlib.pyplot as plt
-
-    # plt.imshow(imagen, cmap='gray')
-    # plt.show()
-
     if config.analyze:
         analyzer()
     elif not config.generate and config.visualize:

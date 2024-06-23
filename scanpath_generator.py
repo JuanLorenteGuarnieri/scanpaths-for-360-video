@@ -302,6 +302,7 @@ def apply_inhibition(saliency_map, points, radius, decay):
                     saliency_map[y, x] *= (1 - decay * (1 - distance / radius))
     # Normalizing the saliency map to keep values within a reasonable range
     saliency_map = np.clip(saliency_map, 0, 1)
+    return saliency_map
     
 
 def apply_equatorial_bias(saliency_map):
@@ -384,15 +385,14 @@ def generate_video_saliency_scanpath_with_inhibition(saliency_map_folder, inhibi
             raise ValueError(f"Saliency map {map_path} could not be loaded.")
 
         if recent_points:
-            modified_saliency_map = saliency_map.copy().astype(np.float32)
-            apply_inhibition(modified_saliency_map, recent_points, inhibition_radius, inhibition_decay)
+            modified_saliency_map = apply_inhibition(saliency_map, recent_points, inhibition_radius, inhibition_decay)
             if config.fixation_distance:
-                adjust_saliency_by_angle(modified_saliency_map, recent_points[-1], config.fixation_angle)
+                modified_saliency_map = adjust_saliency_by_angle(modified_saliency_map, recent_points[-1], config.fixation_angle)
         else:
             modified_saliency_map = saliency_map.astype(np.float32)
 
         if config.equator_bias:
-            apply_equatorial_bias(modified_saliency_map)
+            modified_saliency_map = apply_equatorial_bias(saliency_map)
 
 
         frame_scanpath = generate_image_probabilistic_saliency_scanpath(modified_saliency_map, probabilistic_importance_factor=probabilistic_importance_factor)

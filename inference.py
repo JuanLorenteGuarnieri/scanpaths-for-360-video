@@ -14,30 +14,6 @@ import json
 from utils import save_video 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
-def eval2(test_data, model, device, result_imp_path):
-
-    model.to(device)
-    model.eval()
-
-    with torch.no_grad():
-
-        for x, names in tqdm.tqdm(test_data):
-
-            pred = model(x.to(device))
-
-            batch_size, Nframes, _,_ = pred[:, :, 0, :, :].shape
-            
-            for bs in range(batch_size):
-                for iFrame in range(4,Nframes):
-     
-                    folder = os.path.join(result_imp_path, names[iFrame][bs].split('_')[0])
-                    if not os.path.exists(folder):
-                        os.makedirs(folder)
-
-                    sal = pred[bs, iFrame, 0, :, :].cpu()
-                    sal = np.array((sal - torch.min(sal)) / (torch.max(sal) - torch.min(sal)))
-                    cv2.imwrite(os.path.join(folder, names[iFrame][bs] + '.png'), (sal * 255).astype(np.uint8))
-
 def eval(test_data, model, device, result_imp_path, coordconv_matrix):
     m, n = config.resolution
 
@@ -47,32 +23,36 @@ def eval(test_data, model, device, result_imp_path, coordconv_matrix):
     with torch.no_grad():
 
         for x, names in tqdm.tqdm(test_data):
+            scanpaths = []
 
-            outputs = []
-            scanpath = []
-            tSPMs = []
-            gaussian_map= gmg.gaussian_map(m, n, (0.5,0.5))
-            gaussian_map = gaussian_map.astype(np.float32)
-            gaussian_map = torch.FloatTensor(gaussian_map).unsqueeze(0).unsqueeze(0)
-            
-            frame_del_video = x[:, 0, :, :, :]
-            frame_with_coords = torch.cat((frame_del_video.to(device), coordconv_matrix.to(device), gaussian_map.to(device)), dim=1)
-            state_e, state_d = model.init(frame_with_coords)
-            
-            for t in range(x.shape[1]):  # Loop over time dimension
-                frame_del_video = x[:, t, :, :, :]
-
+            for i in range(config.n_scanpaths_inference):
+                outputs = []
+                scanpath = []
+                tSPMs = []
+                gaussian_map= gmg.gaussian_map(m, n, (0.5,0.5))
+                gaussian_map = gaussian_map.astype(np.float32)
+                gaussian_map = torch.FloatTensor(gaussian_map).unsqueeze(0).unsqueeze(0)
+                
+                frame_del_video = x[:, 0, :, :, :]
                 frame_with_coords = torch.cat((frame_del_video.to(device), coordconv_matrix.to(device), gaussian_map.to(device)), dim=1)
-                out, state_e, state_d = model(frame_with_coords, state_e, state_d)
-                out_squeezed = out.squeeze()
-                tSPM = out_squeezed.cpu().detach().numpy()
-                point = sg.generate_image_saliency_matrix_scanpath(tSPM, 1)
-                gaussian_map = gmg.gaussian_map(out_squeezed.shape[0], out_squeezed.shape[1], (point[0],point[1]))
-                gaussian_map = torch.FloatTensor(gaussian_map.astype(np.float32)).unsqueeze(0).unsqueeze(0).to(device)
-                tSPMs.append(out)
-                scanpath.append(point)
-                outputs.append(gaussian_map)
+                state_e, state_d = model.init(frame_with_coords)
+                
+                for t in range(x.shape[1]):  # Loop over time dimension
+                    frame_del_video = x[:, t, :, :, :]
 
+                    frame_with_coords = torch.cat((frame_del_video.to(device), coordconv_matrix.to(device), gaussian_map.to(device)), dim=1)
+                    out, state_e, state_d = model(frame_with_coords, state_e, state_d)
+                    out_squeezed = out.squeeze()
+                    tSPM = out_squeezed.cpu().detach().numpy()
+                    point = sg.generate_image_probabilistic_saliency_scanpath(tSPM, 8)
+                    gaussian_map = gmg.gaussian_map(out_squeezed.shape[0], out_squeezed.shape[1], (point[1],point[0]))
+                    gaussian_map = torch.FloatTensor(gaussian_map.astype(np.float32)).unsqueeze(0).unsqueeze(0).to(device)
+                    tSPMs.append(out)
+                    scanpath.append(point)
+                    outputs.append(gaussian_map)
+                    
+                scanpaths.append(scanpath)
+            
             outputs = torch.stack(outputs, dim=1)  # Stack along time dimension
             tSPMs = torch.stack(tSPMs, dim=1)  # Stack along time dimension
 
@@ -80,27 +60,27 @@ def eval(test_data, model, device, result_imp_path, coordconv_matrix):
             # Comprobar carpetas
             scanpath_folder = os.path.join(result_imp_path, names[0][0].split('_')[0])
             os.makedirs(scanpath_folder, exist_ok=True)
-            gauss_map_folder = os.path.join(result_imp_path, names[0][0].split('_')[0],"gaus_map")
-            os.makedirs(gauss_map_folder, exist_ok=True)
-            tSPMs_folder = os.path.join(result_imp_path, names[0][0].split('_')[0],"tSPM")
-            os.makedirs(tSPMs_folder, exist_ok=True)
+            # gauss_map_folder = os.path.join(result_imp_path, names[0][0].split('_')[0],"gaus_map")
+            # os.makedirs(gauss_map_folder, exist_ok=True)
+            # tSPMs_folder = os.path.join(result_imp_path, names[0][0].split('_')[0],"tSPM")
+            # os.makedirs(tSPMs_folder, exist_ok=True)
             
             # Guardar scanpath en un archivo
             scanpath_path = os.path.join(scanpath_folder,names[0][0].split('_')[0]+".scanpaths")
             with open(scanpath_path, 'w') as file:
-                json.dump(scanpath, file)
+                json.dump(scanpaths, file)
             
 
-            for bs in range(batch_size):
-                for iFrame in range(4, Nframes):
-                    # Guardar mapas gaussianos en una carpeta
-                    sal = outputs[bs, iFrame, 0, :, :].cpu()
-                    sal = np.array((sal - torch.min(sal)) / (torch.max(sal) - torch.min(sal)))
-                    cv2.imwrite(os.path.join(gauss_map_folder, names[iFrame][bs] + '.png'), (sal * 255).astype(np.uint8))
-                    # Guardar tSPMs en una carpeta
-                    sal = tSPMs[bs, iFrame, 0, :, :].cpu()
-                    sal = np.array((sal - torch.min(sal)) / (torch.max(sal) - torch.min(sal)))
-                    cv2.imwrite(os.path.join(tSPMs_folder, names[iFrame][bs] + '.png'), (sal * 255).astype(np.uint8))
+            # for bs in range(batch_size):
+            #     for iFrame in range(4, Nframes):
+            #         # Guardar mapas gaussianos en una carpeta
+            #         sal = outputs[bs, iFrame, 0, :, :].cpu()
+            #         sal = np.array((sal - torch.min(sal)) / (torch.max(sal) - torch.min(sal)))
+            #         cv2.imwrite(os.path.join(gauss_map_folder, names[iFrame][bs] + '.png'), (sal * 255).astype(np.uint8))
+            #         # Guardar tSPMs en una carpeta
+            #         sal = tSPMs[bs, iFrame, 0, :, :].cpu()
+            #         sal = np.array((sal - torch.min(sal)) / (torch.max(sal) - torch.min(sal)))
+            #         cv2.imwrite(os.path.join(tSPMs_folder, names[iFrame][bs] + '.png'), (sal * 255).astype(np.uint8))
 
 
 
@@ -112,8 +92,7 @@ if __name__ == "__main__":
 
     # Obtain video names from the new folder 'frames'
     inference_frames_folder = os.path.join(config.videos_folder, 'frames')
-    video_test_names = os.listdir(inference_frames_folder)
-
+    video_test_names = [config.name_inference_frames_folder]
     # Select the device
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print("The model will be running on", device, "device") 

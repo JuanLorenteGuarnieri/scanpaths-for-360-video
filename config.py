@@ -17,7 +17,8 @@ analyze = False
 # to avoid generating all videos and overwritting them
 n_scanpaths = 10
 # Path to the folder containing the original frames and saliency maps
-folder_path = './data/5035'
+folder_path = './data/'
+generator_name_video = '5035'
 # Indicates if the program used for generate scanpaths shows the saliency maps in the output video
 overlay_saliency = False
 # Indicates the number of the last prediction frames that should be shown in the output video
@@ -53,14 +54,17 @@ fixation_angle = 5
 v_type = "thumbnail"
 
 # Indicates the file where the visualizer will load the scanpaths from
-v_name = "001"
-v_parameters = ''
+v_name = "0002"
+v_parameters = '_ground_truth'
+
+overlay_saliency = False
 
 
 # Indicates the scanpath numer i who will be loaded to be visualize [1 ... N]
 i_scanpath = 1
 # Indicates the number of the last prediction frames that should be shown in the output video
-v_history_length = 10 
+v_history_length = 5
+plot_n_viewports = 3
 
 
 #####################################################################################
@@ -117,10 +121,14 @@ runs_data_dir = 'runs'
 #####################################################################################
 # Path to the folder containing the model to be used for inference
 # inference_model = 'models/SST_Sal.pth' # with optical flow
-inference_model = 'models/sal_map_adam_lr0-0001_normalization_last_pred_20_skip_20.pth' # without optical flow
+name_inference_frames_folder = '0002'
+
+inference_model = 'models/'+name_inference_frames_folder+'.pth' # without optical flow
 # Path to the folder where the inference results will be saved
 results_dir = 'results'
 # Path to the folder containing the videos to be used for inference
 videos_folder = 'data/videos'
 # Indicates if the model used for inference is trained with or without optical flow
 of_available = False
+
+n_scanpaths_inference = 10
