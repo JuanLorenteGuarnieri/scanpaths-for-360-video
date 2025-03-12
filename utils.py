@@ -566,8 +566,8 @@ def plot_all_viewports(scanpaths, fov_vert_hor, path_to_save, name):
     last_points = [None] * len(scanpaths)
     lat_lon = [None] * len(scanpaths)
 
-    if os.path.exists("./data/frames/"+ name):
-        original_video_path = "./data/frames/"+ name
+    if os.path.exists("./data/"+ name + "/original/"):
+        original_video_path = "./data/"+ name + "/original/"
     else:
         original_video_path = None
 
@@ -633,8 +633,8 @@ def plot_thumbnail(scanpath, path_to_save, name):
     # Ensure the output directory exists
     os.makedirs(path_to_save, exist_ok=True)
 
-    if os.path.exists("./data/frames/"+ name):
-        original_video_path = "./data/frames/"+ name
+    if os.path.exists("./data/"+ name + "/original/"):
+        original_video_path = "./data/"+ name + "/original/"
     else:
       print("Could not find the original video directory")
       return

@@ -45,7 +45,7 @@ def eval(test_data, model, device, result_imp_path, coordconv_matrix):
                     out_squeezed = out.squeeze()
                     tSPM = out_squeezed.cpu().detach().numpy()
                     scaled_tSPM = ((tSPM + 1) / 2) * 255
-                    point = sg.generate_image_probabilistic_saliency_scanpath(scaled_tSPM, 2)
+                    point = sg.generate_image_probabilistic_saliency_scanpath(scaled_tSPM, 4)
                     gaussian_map = gmg.gaussian_map(out_squeezed.shape[0], out_squeezed.shape[1], (point[1],point[0]))
                     gaussian_map = torch.FloatTensor(gaussian_map.astype(np.float32)).unsqueeze(0).unsqueeze(0).to(device)
                     tSPMs.append(out)

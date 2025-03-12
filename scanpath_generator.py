@@ -321,10 +321,7 @@ def apply_equatorial_bias(saliency_map):
     decay_factor = 1 - (distance_to_equator / equator)
 
     # Apply the equatorial bias across all columns
-    saliency_map += config.bias_strength * decay_factor * saliency_map
-
-    # Normalizing the saliency map to keep values within a reasonable range
-    saliency_map = np.clip(saliency_map, 0, 1)
+    saliency_map = pow(decay_factor, config.bias_strength) * saliency_map
 
     return saliency_map
 

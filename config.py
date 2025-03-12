@@ -26,7 +26,7 @@ g_history_length = 10
 
 ### Type of scanpath generator to use ###
 # ('random', 'max_saliency', 'percentile_saliency', 'probabilistic_saliency' or 'inhibition_saliency')
-scanpath_generator_type = 'max_saliency'
+scanpath_generator_type = 'random'
 
 # Percentile for random scanpath generation type 'percentile_saliency' (e.g., 50 for median)
 percentile = 70
@@ -41,7 +41,7 @@ inhibition_decay = 0.8  # Factor by which saliency is reduced within the inhibit
 inhibition_history_length = 5  # Number of recent points to consider for inhibition
 
 equator_bias = True # if True decrease the saliency of Y far from the equator
-bias_strength = 1.0 # Strength of the equatorial bias to increase the saliency of points near the horizontal center
+bias_strength = 3.0 # Strength of the equatorial bias to increase the saliency of points near the horizontal center
 
 fixation_distance = True   # if True decrease the saliency of points based on their distance from a current fixation point
 fixation_angle = 45 # maximum angle between two fixed points
@@ -100,17 +100,21 @@ videos_test_file = 'data/test_split_VRET.txt'
 # Batch size
 batch_size = 1
 # Nº of epochs
-epochs = 1000
+epochs = 10000
 # Learning rate
-lr = 0.001
+lr = 0.8
 # Hidden dimension of the model (SST-Sal uses hidden_dim=36)
 hidden_dim = 36
 # Percentage of training data intended to validation
 validation_split = 0.2
 # Name of the model ( for saving pruposes)
-model_name = '0002'
+model_name = '10_videos_prob_importance_4'
 # Path to the folder where the checkpoints will be saved
 ckp_dir = 'checkpoints'
+# Number of epochs between checkpoints
+ckp_nepochs = 200
+# Number of last sequences to consider for training
+n_last_sequences = 20
 # Path to the folder where the model will be saved
 models_dir ='models'
 # Path to the folder where the training logs will be saved
@@ -120,7 +124,7 @@ runs_data_dir = 'runs'
 # Inference parameters
 #####################################################################################
 # Path to the folder containing the model to be used for inference
-name_inference_frames_folder = '1004'
+name_inference_frames_folder = '0010'
 inference_model = 'models/'+name_inference_frames_folder+'.pth'
 # Path to the folder where the inference results will be saved
 results_dir = 'results'

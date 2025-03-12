@@ -31,16 +31,16 @@ def analyzer():
     dtw_scores, det_scores, rec_scores, lev_scores, tde_scores, eye_scores, euc_scores, frech_scores = [], [], [], [], [], [], [], []
 
     # Initialize an empty list to store the final data
-    data_group = []
+    datos_agrupados = []
 
     with open("./output_scanpaths/ground_truth.scanpaths", 'r') as file:
-        data_group = json.load(file)
+        datos_agrupados = json.load(file)
 
-    # Now 'data_group' contains the data in the desired format
-    data_group_scaled = [[[int(x * 100), int(y * 100)] for x, y in scanpath] for scanpath in data_group]
-    # print(len(data_group))
+    # Now 'datos_agrupados' contains the data in the desired format
+    datos_agrupados_scaled = [[[int(x * 100), int(y * 100)] for x, y in scanpath] for scanpath in datos_agrupados]
+    # print(len(datos_agrupados))
 
-    for sp1 in tqdm(data_group_scaled , desc="Procesando lista 1"):
+    for sp1 in tqdm(datos_agrupados_scaled , desc="Procesando lista 1"):
         for sp2 in tqdm(scanpaths_scaled, desc="Comparando con lista 2", leave=False):
             rec_score = [0] * 8
             rec_score[0] = metrics.DTW(sp1, sp2)
@@ -112,13 +112,13 @@ def visualizer():
     # Select the scanpath
     selected_scanpath = scanpaths[i_scanpath]
 
-    if os.path.exists("./data/frames/"+config.v_name):
-        original_video_path = "./data/frames/"+config.v_name
+    if os.path.exists("./data/"+config.v_name + "/original/"):
+        original_video_path = "./data/"+config.v_name + "/original/"
     else:
         original_video_path = None
 
-    if os.path.exists("./data/saliency_maps/"+config.v_name) and config.overlay_saliency:
-        saliency_video_path = "./data/saliency_maps/"+config.v_name
+    if os.path.exists("./data/"+config.v_name + "/saliency/") and config.overlay_saliency:
+        saliency_video_path = "./data/"+config.v_name + "/saliency/"
     else:
         saliency_video_path = None
 
